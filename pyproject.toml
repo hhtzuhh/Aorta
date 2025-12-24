@@ -1,0 +1,23 @@
+[project]
+name = "aorta"
+version = "0.1.0"
+description = "Real-time hospital admission monitoring with Confluent Cloud + GCP"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # Kafka streaming
+    "confluent-kafka>=2.12.1",
+
+    # Data processing
+    "pandas>=2.0.0",
+
+    # Backend API
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "sse-starlette>=2.1.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
+]
+[tool.uv]
+dev-dependencies = []

@@ -1,0 +1,41 @@
+# Data files (too large + contains PHI)
+_data/
+*.db
+*.csv
+*.csv.gz
+
+# Credentials (NEVER commit!)
+credential/
+_data/*.json
+terraform/*.json
+*.pem
+*.key
+*.env
+.env.*
+
+# Terraform sensitive files
+terraform/terraform.tfvars
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+
+docs/

@@ -1,0 +1,16 @@
+# ============================================================
+# Aorta - Terraform Variables Example
+# Copy this file to terraform.tfvars and fill in your values
+# ============================================================
+
+# Confluent Cloud Credentials
+# Get these from: https://confluent.cloud/settings/api-keys
+confluent_cloud_api_key    = "YOUR_CONFLUENT_CLOUD_API_KEY"
+confluent_cloud_api_secret = "YOUR_CONFLUENT_CLOUD_API_SECRET"
+
+# GCP Configuration
+gcp_region     = "us-central1"  # Choose: us-central1, us-east1, us-west1, etc.
+gcp_project_id = "your-gcp-project-id"
+
+# Optional: Owner email for resource tagging
+owner_email = "your-email@example.com"
