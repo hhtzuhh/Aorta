@@ -66,6 +66,7 @@ class AdmissionStreamer:
                 a.insurance,
                 a.language,
                 a.marital_status,
+                a.race,
                 p.gender,
                 p.anchor_age
             FROM admissions a
@@ -90,15 +91,16 @@ class AdmissionStreamer:
             "patient": {
                 "subject_id": str(admission['subject_id']),
                 "age": admission['anchor_age'],
-                "gender": admission['gender']
+                "gender": admission['gender'],
             },
             "admission": {
                 "hadm_id": str(admission['hadm_id']),
                 "type": admission['admission_type'],
                 "location": admission['admission_location'],
                 "insurance": admission['insurance'],
+                "marital_status": admission['marital_status'] or "UNKNOWN",
                 "language": admission['language'] or "UNKNOWN",
-                "marital_status": admission['marital_status'] or "UNKNOWN"
+                "race": admission['race'] or "UNKNOWN"
             },
             "discharge": {
                 "time": admission['dischtime'],
