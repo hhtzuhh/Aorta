@@ -40,18 +40,25 @@ class LabProducer(TimeAwareProducer):
         """
         query = """
             SELECT
+                l.labevent_id,
                 l.subject_id,
                 l.hadm_id,
+                l.specimen_id,
                 l.charttime,
+                l.storetime,
                 l.itemid,
-                l.value,
+                di.label,
+                di.fluid,
+                di.category,
                 l.valuenum,
                 l.valueuom,
-                d.label as test_name,
-                d.category,
-                d.fluid
+                l.ref_range_lower,
+                l.ref_range_upper,
+                l.flag,
+                l.priority
             FROM labevents l
-            LEFT JOIN d_labitems d ON l.itemid = d.itemid
+            JOIN d_labitems di
+              ON l.itemid = di.itemid
             WHERE l.charttime >= ? AND l.charttime < ?
         """
 
@@ -80,6 +87,7 @@ class LabProducer(TimeAwareProducer):
         return {
             "event_type": "LAB_RESULT",
             "event_time": db_row['charttime'],
+            "store_time": db_row['storetime'],
             "processing_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "patient": {
                 "subject_id": str(db_row['subject_id'])
@@ -88,13 +96,18 @@ class LabProducer(TimeAwareProducer):
                 "hadm_id": str(db_row['hadm_id']) if db_row['hadm_id'] else None
             },
             "lab": {
-                "test_name": db_row['test_name'] or f"Unknown (ID: {db_row['itemid']})",
-                "value": db_row['value'],
+                "labevent_id": str(db_row['labevent_id']),
+                "specimen_id": str(db_row['specimen_id']) if db_row['specimen_id'] else None,
+                "test_name": db_row['label'] or f"Unknown (ID: {db_row['itemid']})",
+                "itemid": db_row['itemid'],
                 "value_numeric": db_row['valuenum'],
                 "unit": db_row['valueuom'],
+                "ref_range_lower": db_row['ref_range_lower'],
+                "ref_range_upper": db_row['ref_range_upper'],
+                "flag": db_row['flag'],
+                "priority": db_row['priority'],
                 "category": db_row['category'],
-                "fluid": db_row['fluid'],
-                "itemid": db_row['itemid']
+                "fluid": db_row['fluid']
             }
         }
 
