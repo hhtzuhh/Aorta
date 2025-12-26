@@ -15,6 +15,7 @@ from coordinator.clock_service import SimulationClock
 # Global clock instance
 clock: Optional[SimulationClock] = None
 tick_task: Optional[asyncio.Task] = None
+tick_interval_seconds: float = 2.0  # Default tick interval
 
 
 app = FastAPI(
@@ -37,6 +38,7 @@ class ClockConfig(BaseModel):
     """Configuration for initializing the clock"""
     start_time: str
     tick_minutes: int = 10
+    tick_interval_seconds: Optional[float] = None  # Optional: tick interval for auto-tick
 
 
 class TickInterval(BaseModel):
@@ -205,7 +207,8 @@ async def get_status():
     return {
         "current_time": status["current_time"],
         "is_running": status["is_running"],
-        "tick_size_minutes": status["tick_size_minutes"]
+        "tick_size_minutes": status["tick_size_minutes"],
+        "tick_interval_seconds": tick_interval_seconds  # Add tick interval to status
     }
 
 
@@ -220,7 +223,7 @@ async def reset_clock(config: ClockConfig):
     Returns:
         Status message with new configuration
     """
-    global clock, tick_task
+    global clock, tick_task, tick_interval_seconds
 
     if not clock:
         raise HTTPException(status_code=500, detail="Clock not initialized")
@@ -235,6 +238,10 @@ async def reset_clock(config: ClockConfig):
             except asyncio.CancelledError:
                 pass
 
+    # Store tick interval if provided
+    if config.tick_interval_seconds is not None:
+        tick_interval_seconds = config.tick_interval_seconds
+
     # Create new clock with new configuration
     clock = SimulationClock(
         start_time=config.start_time,
@@ -245,6 +252,7 @@ async def reset_clock(config: ClockConfig):
         "message": "Clock reset successfully",
         "start_time": config.start_time,
         "tick_minutes": config.tick_minutes,
+        "tick_interval_seconds": tick_interval_seconds,
         "status": "stopped"
     }
 

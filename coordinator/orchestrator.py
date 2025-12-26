@@ -120,9 +120,10 @@ def main():
         description='Coordinate multi-producer streaming with simulation clock'
     )
     parser.add_argument(
-        '--subject-id',
+        '--subject-ids',
         type=int,
-        help='Filter by patient ID (for development/testing)'
+        nargs='+',
+        help='Filter by patient IDs (space-separated, e.g., --subject-ids 10003400 10006701 10007218)'
     )
     parser.add_argument(
         '--tick-interval',
@@ -141,6 +142,17 @@ def main():
         default='http://localhost:9000',
         help='URL of the clock service (default: http://localhost:9000)'
     )
+    parser.add_argument(
+        '--start-time',
+        type=str,
+        help='Simulation start time (YYYY-MM-DD HH:MM:SS). If not provided, uses clock default.'
+    )
+    parser.add_argument(
+        '--tick-minutes',
+        type=int,
+        default=10,
+        help='Minutes per tick window (default: 10)'
+    )
 
     args = parser.parse_args()
 
@@ -150,8 +162,11 @@ def main():
     print("📋 Configuration:")
     print(f"   Clock URL: {args.clock_url}")
     print(f"   Tick interval: {args.tick_interval}s")
-    if args.subject_id:
-        print(f"   Patient filter: {args.subject_id}")
+    print(f"   Tick window size: {args.tick_minutes} minutes")
+    if args.start_time:
+        print(f"   Start time: {args.start_time}")
+    if args.subject_ids:
+        print(f"   Patient filter: {', '.join(map(str, args.subject_ids))}")
     else:
         print(f"   Patient filter: ALL patients")
     if args.max_ticks:
@@ -168,16 +183,35 @@ def main():
         print("   uvicorn main:app --reload --port 9000")
         return 1
 
+    # Reset clock with custom start time if provided
+    if args.start_time:
+        print(f"\n⏰ Resetting clock to start time: {args.start_time}")
+        try:
+            response = requests.post(
+                f"{args.clock_url}/reset",
+                json={
+                    "start_time": args.start_time,
+                    "tick_minutes": args.tick_minutes,
+                    "tick_interval_seconds": args.tick_interval  # Pass tick interval to clock
+                },
+                timeout=5
+            )
+            response.raise_for_status()
+            print("   ✅ Clock reset successful")
+        except Exception as e:
+            print(f"   ❌ Failed to reset clock: {e}")
+            return 1
+
     # Initialize producers
     print("\n🔧 Initializing producers...")
     try:
         admission_producer = AdmissionProducer(
             clock_url=args.clock_url,
-            subject_id=args.subject_id
+            subject_ids=args.subject_ids  # Pass list of subject IDs
         )
         lab_producer = LabProducer(
             clock_url=args.clock_url,
-            subject_id=args.subject_id
+            subject_ids=args.subject_ids  # Pass list of subject IDs
         )
     except Exception as e:
         print(f"❌ Failed to initialize producers: {e}")
@@ -204,8 +238,6 @@ def main():
 
     try:
         while True:
-            # Wait for next tick
-            time.sleep(args.tick_interval)
             tick_count += 1
 
             # Get current window from clock
@@ -217,6 +249,7 @@ def main():
                 window_end = window["window_end"]
             except Exception as e:
                 print(f"⚠️  Failed to get current window: {e}")
+                time.sleep(args.tick_interval)
                 continue
 
             # Process tick for each producer
@@ -225,6 +258,7 @@ def main():
                 lab_count = lab_producer.process_tick()
             except Exception as e:
                 print(f"⚠️  Error processing tick: {e}")
+                time.sleep(args.tick_interval)
                 continue
 
             # Update totals
@@ -244,6 +278,9 @@ def main():
             if args.max_ticks and tick_count >= args.max_ticks:
                 print(f"\n✅ Reached max ticks ({args.max_ticks})")
                 break
+
+            # Wait for next tick (moved to end so first window is processed immediately)
+            time.sleep(args.tick_interval)
 
     except KeyboardInterrupt:
         print("\n\n⚠️  Interrupted by user")

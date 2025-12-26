@@ -1,15 +1,27 @@
 """
-Pydantic models for hospital admission events
+Pydantic models for hospital admission and lab events
 
-Models match the JSON schema produced by stream_admissions.py
+Models match the JSON schema produced by stream_admissions_coordinated.py and stream_labs.py
 """
 
 from typing import Optional
 from pydantic import BaseModel, computed_field
 
 
+# Reference models (for lab events - minimal data)
+class PatientReference(BaseModel):
+    """Minimal patient reference (used in lab events)"""
+    subject_id: str
+
+
+class AdmissionReference(BaseModel):
+    """Minimal admission reference (used in lab events)"""
+    hadm_id: Optional[str] = None
+
+
+# Full models (for admission events - complete data)
 class Patient(BaseModel):
-    """Patient demographic information"""
+    """Patient demographic information (full)"""
 
     subject_id: str
     age: int
@@ -17,7 +29,7 @@ class Patient(BaseModel):
 
 
 class Admission(BaseModel):
-    """Hospital admission details"""
+    """Hospital admission details (full)"""
 
     hadm_id: str
     type: str
@@ -38,11 +50,12 @@ class AdmissionEvent(BaseModel):
     """
     Complete admission event from Kafka
 
-    Matches the JSON structure from stream_admissions.py
+    Matches the JSON structure from stream_admissions_coordinated.py
     """
 
     event_type: str
-    timestamp: str
+    event_time: str
+    processing_time: Optional[str] = None
     patient: Patient
     admission: Admission
     discharge: Discharge
@@ -85,3 +98,45 @@ class AdmissionEvent(BaseModel):
                 }
             }
         }
+
+
+class LabTest(BaseModel):
+    """Laboratory test details"""
+
+    labevent_id: str
+    specimen_id: Optional[str] = None
+    test_name: str
+    itemid: int
+    value_numeric: Optional[float] = None
+    unit: Optional[str] = None
+    ref_range_lower: Optional[float] = None
+    ref_range_upper: Optional[float] = None
+    flag: Optional[str] = None
+    priority: Optional[str] = None
+    category: Optional[str] = None
+    fluid: Optional[str] = None
+
+
+class LabEvent(BaseModel):
+    """
+    Complete lab event from Kafka
+
+    Matches the JSON structure from stream_labs.py
+    Uses reference models since lab events only contain IDs
+    """
+
+    event_type: str
+    event_time: str
+    store_time: Optional[str] = None
+    processing_time: str
+    patient: PatientReference  # Only subject_id
+    admission: AdmissionReference  # Only hadm_id
+    lab: LabTest
+
+    @computed_field
+    @property
+    def is_abnormal(self) -> bool:
+        """
+        Determine if lab result is abnormal based on flag field
+        """
+        return self.lab.flag and self.lab.flag.upper() == "ABNORMAL"

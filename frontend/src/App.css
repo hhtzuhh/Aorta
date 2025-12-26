@@ -42,6 +42,46 @@ body {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+/* Stream Status */
+.stream-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #6b7280;
+  margin-left: 16px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.connected {
+  background-color: #10b981;
+  box-shadow: 0 0 4px #10b981;
+}
+
+.status-dot.connecting {
+  background-color: #f59e0b;
+  animation: pulse 1.5s infinite;
+}
+
+.status-dot.disconnected {
+  background-color: #dc2626;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
 .header-content {
   max-width: 1200px;
   margin: 0 auto;
@@ -314,6 +354,61 @@ body {
 
 .admission-feed::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* Error Boundary */
+.error-boundary {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  padding: 40px;
+  margin: 20px 0;
+  text-align: center;
+}
+
+.error-content h2 {
+  color: #dc2626;
+  margin-bottom: 16px;
+}
+
+.error-content p {
+  color: #6b7280;
+  margin-bottom: 20px;
+}
+
+.error-content details {
+  text-align: left;
+  background: #f9fafb;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  font-size: 12px;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.error-content summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.error-retry-button {
+  margin-top: 20px;
+  padding: 10px 20px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.error-retry-button:hover {
+  background: #2563eb;
 }
 
 /* Responsive */

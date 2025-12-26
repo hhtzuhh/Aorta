@@ -23,7 +23,7 @@ class TimeAwareProducer:
     def __init__(
         self,
         clock_url: str = "http://localhost:9000",
-        subject_id: Optional[int] = None,
+        subject_ids: Optional[list[int]] = None,
         kafka_config_path: str = "_data/kafka_config.json",
         db_path: str = "_data/mimic_demo.db"
     ):
@@ -32,12 +32,12 @@ class TimeAwareProducer:
 
         Args:
             clock_url: URL of the simulation clock service
-            subject_id: Patient ID to filter by (None = all patients)
+            subject_ids: List of patient IDs to filter by (None = all patients)
             kafka_config_path: Path to Kafka configuration JSON
             db_path: Path to SQLite database
         """
         self.clock_url = clock_url
-        self.subject_id = subject_id
+        self.subject_ids = subject_ids
 
         # Initialize database connection
         if not Path(db_path).exists():
@@ -53,8 +53,8 @@ class TimeAwareProducer:
         self.topic = None
 
         print(f"✅ {self.__class__.__name__} initialized")
-        if subject_id:
-            print(f"🎯 Filtering by patient: {subject_id}")
+        if subject_ids:
+            print(f"🎯 Filtering by patients: {', '.join(map(str, subject_ids))}")
 
     def _create_kafka_producer(self, kafka_config_path: str) -> Producer:
         """

@@ -59,10 +59,11 @@ class AdmissionProducer(TimeAwareProducer):
 
         params = [window_start, window_end]
 
-        # Add subject_id filter if specified
-        if self.subject_id:
-            query += " AND a.subject_id = ?"
-            params.append(self.subject_id)
+        # Add subject_ids filter if specified
+        if self.subject_ids:
+            placeholders = ','.join('?' * len(self.subject_ids))
+            query += f" AND a.subject_id IN ({placeholders})"
+            params.extend(self.subject_ids)
 
         query += " ORDER BY a.admittime"
 

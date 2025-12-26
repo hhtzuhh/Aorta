@@ -1,10 +1,14 @@
 /**
  * Header Component
  *
- * Dashboard header with title and branding
+ * Dashboard header with title, branding, and simulation clock
  */
 
+import { useSimulationClock } from '../contexts/ClockContext';
+
 export const Header = () => {
+  const { currentTime } = useSimulationClock();
+
   return (
     <header className="header">
       <div className="header-content">
@@ -12,7 +16,14 @@ export const Header = () => {
           <span className="icon">🏥</span>
           Aorta
         </h1>
-        <p className="subtitle">Real-Time Hospital Admission Monitor</p>
+        <p className="subtitle">
+          Multi-Patient Clinical Timeline Dashboard
+          {currentTime && (
+            <span className="simulation-time">
+              {' '} • Simulation Time: {currentTime}
+            </span>
+          )}
+        </p>
       </div>
     </header>
   );

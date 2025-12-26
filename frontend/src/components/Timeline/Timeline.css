@@ -1,0 +1,307 @@
+/* Timeline Container */
+.timeline-container {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  overflow-x: auto;  /* Enable horizontal scrolling */
+  overflow-y: hidden;
+  margin: 20px 0;
+  position: relative;
+}
+
+/* Zoom Controls - External (above timeline) */
+.timeline-zoom-controls-external {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.zoom-label-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-right: 8px;
+}
+
+.zoom-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #d1d5db;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4b5563;
+  transition: all 0.2s;
+}
+
+.zoom-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.zoom-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.zoom-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  min-width: 30px;
+  text-align: center;
+}
+
+.timeline-empty,
+.timeline-loading {
+  padding: 60px 20px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+/* Timeline Axis */
+.timeline-axis {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  background: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+  padding: 10px 0;
+  padding-left: 70px;  /* Match patient label width */
+}
+
+.timeline-axis svg {
+  overflow: visible;
+}
+
+.axis-group text {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+/* Timeline Rows Container */
+.timeline-rows {
+  max-height: calc(100vh - 350px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar for timeline rows */
+.timeline-rows::-webkit-scrollbar {
+  width: 8px;
+}
+
+.timeline-rows::-webkit-scrollbar-track {
+  background: #f3f4f6;
+}
+
+.timeline-rows::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+.timeline-rows::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Individual Timeline Row */
+.timeline-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #f3f4f6;
+  position: relative;
+  min-width: fit-content;  /* Allow row to be wider than container */
+}
+
+.timeline-row:hover {
+  background: #fafbfc;
+}
+
+/* Patient Label */
+.timeline-patient-label {
+  width: 70px;
+  padding: 8px;
+  text-align: center;
+  border-right: 1px solid #e5e7eb;
+  flex-shrink: 0;
+  position: sticky;  /* Stick to left when scrolling */
+  left: 0;
+  background: white;
+  z-index: 5;
+}
+
+.patient-id {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.patient-info {
+  font-size: 10px;
+  color: #6b7280;
+}
+
+/* Timeline SVG */
+.timeline-svg {
+  flex: 1;
+}
+
+/* Tooltip */
+.timeline-tooltip {
+  position: fixed;
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 1000;
+  max-width: 300px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+}
+
+.tooltip-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 6px;
+}
+
+.tooltip-item {
+  margin: 4px 0;
+  line-height: 1.5;
+}
+
+.tooltip-item strong {
+  color: #93c5fd;
+  margin-right: 6px;
+}
+
+/* Timeline Legend */
+.timeline-legend {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  padding: 16px 20px;
+  margin: 20px 0;
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.legend-section {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.legend-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: #374151;
+  margin-right: 4px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.legend-color-box {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  opacity: 0.7;
+}
+
+.legend-color-circle {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid white;
+}
+
+/* Stats Bar */
+.stats-bar {
+  display: flex;
+  gap: 16px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+}
+
+.stat-card {
+  background: white;
+  border-radius: 8px;
+  padding: 16px 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  font-size: 14px;
+  color: #374151;
+  font-weight: 500;
+  min-width: 140px;
+}
+
+.stat-card strong {
+  display: block;
+  font-size: 24px;
+  color: #1f2937;
+  margin-top: 4px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .timeline-patient-label {
+    width: 60px;
+    padding: 6px;
+  }
+
+  .patient-id {
+    font-size: 11px;
+  }
+
+  .patient-info {
+    font-size: 9px;
+  }
+
+  .timeline-rows {
+    max-height: calc(100vh - 400px);
+  }
+
+  .timeline-legend {
+    gap: 12px;
+  }
+
+  .legend-section {
+    gap: 8px;
+  }
+}
+
+/* Animation for new rows */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.timeline-row {
+  animation: fadeIn 0.3s ease-out;
+}

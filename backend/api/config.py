@@ -39,12 +39,27 @@ class Settings(BaseSettings):
     def load_from_kafka_config(cls, config_path: str = "_data/kafka_config.json"):
         """Load Kafka configuration from JSON file"""
 
-        config_file = Path(config_path)
+        # Try multiple paths to find the config file
+        # 1. Relative to current directory (when running from Aorta/)
+        # 2. Relative to backend directory (when running from Aorta/backend)
+        # 3. Relative to this file's location
 
-        if not config_file.exists():
+        possible_paths = [
+            Path(config_path),                                    # _data/kafka_config.json
+            Path("..") / config_path,                            # ../_data/kafka_config.json
+            Path(__file__).parent.parent.parent / config_path,   # Aorta/_data/kafka_config.json
+        ]
+
+        config_file = None
+        for path in possible_paths:
+            if path.exists():
+                config_file = path
+                break
+
+        if not config_file:
             raise FileNotFoundError(
-                f"Kafka config not found at {config_path}. "
-                f"Run: terraform output -json kafka_config > {config_path}"
+                f"Kafka config not found. Tried: {[str(p) for p in possible_paths]}. "
+                f"Run: terraform output -json kafka_config > _data/kafka_config.json"
             )
 
         with open(config_file) as f:

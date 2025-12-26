@@ -1,0 +1,134 @@
+/* Lab Detail Panel */
+.lab-detail-panel {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  margin-top: 16px;
+  padding: 16px;
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.lab-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.lab-detail-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+.lab-detail-content {
+  overflow-x: auto;
+}
+
+/* Lab Results Table */
+.lab-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.lab-table thead {
+  background: #f9fafb;
+}
+
+.lab-table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.lab-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f3f4f6;
+  color: #4b5563;
+}
+
+.lab-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.lab-table tbody tr.abnormal-row {
+  background: #fef2f2;
+}
+
+.lab-table tbody tr.abnormal-row:hover {
+  background: #fee2e2;
+}
+
+.test-name {
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.test-value {
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+}
+
+.test-unit {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.test-range {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.flag-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #fecaca;
+  color: #991b1b;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.flag-normal {
+  color: #059669;
+  font-size: 12px;
+}
