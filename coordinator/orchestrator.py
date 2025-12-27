@@ -15,6 +15,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from producers.stream_admissions_coordinated import AdmissionProducer
 from producers.stream_labs import LabProducer
+from producers.stream_vitals import VitalsProducer
+from producers.stream_icu_stays import ICUStayProducer
 
 
 def wait_for_clock_service(clock_url: str, timeout: int = 30):
@@ -89,7 +91,8 @@ def print_header():
 
 
 def print_tick_summary(tick_num: int, window_start: str, window_end: str,
-                       admission_count: int, lab_count: int):
+                       admission_count: int, lab_count: int, vitals_count: int,
+                       icu_count: int):
     """
     Print summary of a tick cycle.
 
@@ -108,8 +111,12 @@ def print_tick_summary(tick_num: int, window_start: str, window_end: str,
         print(f"   🏥 Admissions: {admission_count} events")
     if lab_count > 0:
         print(f"   🔬 Labs: {lab_count} events")
+    if vitals_count > 0:
+        print(f"   ❤️  Vitals: {vitals_count} events")
+    if icu_count > 0:
+        print(f"   🚨 ICU Admissions: {icu_count} events")
 
-    if admission_count == 0 and lab_count == 0:
+    if admission_count == 0 and lab_count == 0 and vitals_count == 0 and icu_count == 0:
         print(f"   📭 No events in this window")
 
 
@@ -213,6 +220,14 @@ def main():
             clock_url=args.clock_url,
             subject_ids=args.subject_ids  # Pass list of subject IDs
         )
+        vitals_producer = VitalsProducer(
+            clock_url=args.clock_url,
+            subject_ids=args.subject_ids
+        )
+        icu_producer = ICUStayProducer(
+            clock_url=args.clock_url,
+            subject_ids=args.subject_ids
+        )
     except Exception as e:
         print(f"❌ Failed to initialize producers: {e}")
         return 1
@@ -235,6 +250,8 @@ def main():
     tick_count = 0
     total_admissions = 0
     total_labs = 0
+    total_vitals = 0
+    total_icus = 0
 
     try:
         while True:
@@ -256,6 +273,8 @@ def main():
             try:
                 admission_count = admission_producer.process_tick()
                 lab_count = lab_producer.process_tick()
+                vitals_count = vitals_producer.process_tick()
+                icu_count = icu_producer.process_tick()
             except Exception as e:
                 print(f"⚠️  Error processing tick: {e}")
                 time.sleep(args.tick_interval)
@@ -264,6 +283,8 @@ def main():
             # Update totals
             total_admissions += admission_count
             total_labs += lab_count
+            total_vitals += vitals_count
+            total_icus += icu_count
 
             # Print summary
             print_tick_summary(
@@ -271,7 +292,9 @@ def main():
                 window_start,
                 window_end,
                 admission_count,
-                lab_count
+                lab_count,
+                vitals_count,
+                icu_count
             )
 
             # Check if we've hit max ticks
@@ -293,9 +316,13 @@ def main():
         print("⏳ Flushing producers...")
         admission_producer.flush()
         lab_producer.flush()
+        vitals_producer.flush()
+        icu_producer.flush()
 
         admission_producer.close()
         lab_producer.close()
+        vitals_producer.close()
+        icu_producer.close()
 
         # Print final summary
         print("\n" + "=" * 80)
@@ -304,7 +331,9 @@ def main():
         print(f"Total ticks processed: {tick_count}")
         print(f"Total admissions streamed: {total_admissions}")
         print(f"Total labs streamed: {total_labs}")
-        print(f"Total events: {total_admissions + total_labs}")
+        print(f"Total vitals streamed: {total_vitals}")
+        print(f"Total ICU admissions streamed: {total_icus}")
+        print(f"Total events: {total_admissions + total_labs + total_vitals + total_icus}")
         print("\n✅ Orchestrator shutdown complete")
 
     return 0

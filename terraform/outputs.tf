@@ -103,9 +103,11 @@ output "flink_api_secret" {
 output "topics" {
   description = "Created Kafka Topics"
   value = {
-    admissions = confluent_kafka_topic.admissions.topic_name
-    alerts     = confluent_kafka_topic.alerts.topic_name
-    labs       = confluent_kafka_topic.labs.topic_name
+    admissions     = confluent_kafka_topic.admissions.topic_name
+    alerts         = confluent_kafka_topic.alerts.topic_name
+    labs           = confluent_kafka_topic.labs.topic_name
+    vitals         = confluent_kafka_topic.vitals.topic_name
+    icu_admissions = confluent_kafka_topic.icu_admissions.topic_name
   }
 }
 
@@ -142,6 +144,8 @@ output "summary" {
       - ${confluent_kafka_topic.admissions.topic_name}
       - ${confluent_kafka_topic.alerts.topic_name}
       - ${confluent_kafka_topic.labs.topic_name}
+      - ${confluent_kafka_topic.vitals.topic_name}
+      - ${confluent_kafka_topic.icu_admissions.topic_name}
 
     Flink Pool: ${confluent_flink_compute_pool.aorta_flink_pool.display_name}
 
