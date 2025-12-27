@@ -41,6 +41,7 @@ class LabConsumer:
             'group.id': 'aorta-lab-consumer-v1',
             'auto.offset.reset': 'earliest',  # Start from beginning for testing
             'enable.auto.commit': True,
+            'log_level': 0,  # Suppress librdkafka debug logs
         }
 
         self.consumer = None
@@ -91,6 +92,9 @@ class LabConsumer:
                     if msg.error().code() == KafkaError._PARTITION_EOF:
                         # End of partition - not an error
                         logger.debug(f"Reached end of partition {msg.partition()}")
+                    elif msg.error().code() == KafkaError._RESOLVE:
+                        # DNS resolution errors - common during startup, log at debug
+                        logger.debug(f"Kafka DNS resolution error: {msg.error()}")
                     else:
                         logger.error(f"Kafka error: {msg.error()}")
                     continue
@@ -108,6 +112,10 @@ class LabConsumer:
         try:
             # Parse JSON message
             event_data = json.loads(msg.value().decode('utf-8'))
+
+            # Skip warm-up test messages from producers
+            if event_data.get('test'):
+                return
 
             # Validate and create LabEvent
             lab = LabEvent(**event_data)

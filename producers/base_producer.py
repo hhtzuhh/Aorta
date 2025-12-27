@@ -56,6 +56,40 @@ class TimeAwareProducer:
         if subject_ids:
             print(f"🎯 Filtering by patients: {', '.join(map(str, subject_ids))}")
 
+    def warm_up(self, timeout=10) -> bool:
+        """
+        Force Kafka connection by sending a test message and waiting for delivery.
+        This ensures DNS resolution happens now, not during the first real send.
+
+        Returns:
+            True if connection succeeded, False otherwise
+        """
+        if not self.topic:
+            return False
+
+        delivery_success = [False]  # Use list to allow modification in callback
+
+        def callback(err, msg):
+            if err:
+                print(f"   ❌ Connection test failed: {err}")
+            else:
+                delivery_success[0] = True
+
+        # Send a small test message
+        self.kafka_producer.produce(
+            topic=self.topic,
+            key="__warmup__",
+            value=b'{"test": true}',
+            callback=callback
+        )
+
+        # Wait for delivery confirmation
+        self.kafka_producer.flush(timeout)
+
+        if delivery_success[0]:
+            print(f"   ✅ {self.__class__.__name__} connected to Kafka")
+        return delivery_success[0]
+
     def _create_kafka_producer(self, kafka_config_path: str) -> Producer:
         """
         Create Kafka producer from configuration file.
@@ -82,6 +116,7 @@ class TimeAwareProducer:
             'sasl.username': kafka_config['sasl_username'],
             'sasl.password': kafka_config['sasl_password'],
             'client.id': f'{self.__class__.__name__.lower()}-producer',
+            'log_level': 0,  # Suppress librdkafka debug/error spam
         }
 
         return Producer(producer_config)
@@ -199,13 +234,15 @@ class TimeAwareProducer:
 
         return len(events)
 
-    def flush(self):
+    def flush(self, timeout=10):
         """Flush any pending messages to Kafka"""
-        self.kafka_producer.flush()
+        remaining = self.kafka_producer.flush(timeout)
+        if remaining > 0:
+            print(f"⚠️  {remaining} messages failed to deliver")
 
     def close(self):
         """Close all connections"""
-        self.kafka_producer.flush()
+        self.kafka_producer.flush(5)  # 5 second timeout on close
         self.conn.close()
 
     def __enter__(self):

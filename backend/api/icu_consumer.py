@@ -1,7 +1,7 @@
 """
-Kafka Consumer with SSE Broadcasting
+Kafka Consumer for ICU Admission Events with SSE Broadcasting
 
-Consumes hospital admission events from Kafka and broadcasts
+Consumes ICU admission events from Kafka and broadcasts
 to connected SSE clients in real-time.
 """
 
@@ -12,18 +12,18 @@ from collections import deque
 from typing import List, Set
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from .config import Settings
-from .models import AdmissionEvent
+from .models import ICUAdmissionEvent
 
 logger = logging.getLogger(__name__)
 
 
-class AdmissionConsumer:
+class ICUConsumer:
     """
-    Kafka consumer for hospital admissions with SSE broadcast capability
+    Kafka consumer for ICU admission events with SSE broadcast capability
 
     Features:
-    - Consumes from hospital-admissions topic
-    - Maintains circular buffer of recent admissions
+    - Consumes from icu-admissions topic
+    - Maintains circular buffer of recent ICU admissions
     - Broadcasts new events to all connected SSE clients
     - Thread-safe queue management for SSE clients
     """
@@ -38,7 +38,7 @@ class AdmissionConsumer:
             'sasl.mechanism': settings.kafka_sasl_mechanism,
             'sasl.username': settings.kafka_sasl_username,
             'sasl.password': settings.kafka_sasl_password,
-            'group.id': settings.kafka_group_id,
+            'group.id': 'aorta-icu-consumer-v1',
             'auto.offset.reset': 'earliest',  # Start from beginning for testing
             'enable.auto.commit': True,
             'log_level': 0,  # Suppress librdkafka debug logs
@@ -47,37 +47,37 @@ class AdmissionConsumer:
         self.consumer = None
         self.running = False
 
-        # Circular buffer for recent admissions
-        self.recent_admissions: deque = deque(maxlen=settings.max_recent_admissions)
+        # Circular buffer for recent ICU admissions
+        self.recent_icu_admissions: deque = deque(maxlen=100)
 
         # Set of asyncio queues for SSE clients
         self.sse_queues: Set[asyncio.Queue] = set()
 
-        logger.info("AdmissionConsumer initialized")
+        logger.info("ICUConsumer initialized")
 
     async def start(self):
         """Start the Kafka consumer"""
         try:
             self.consumer = Consumer(self.consumer_config)
-            self.consumer.subscribe([self.settings.kafka_topic])
+            self.consumer.subscribe(["icu-admissions"])
             self.running = True
 
             logger.info(
-                f"Kafka consumer started. Topic: {self.settings.kafka_topic}, "
-                f"Group: {self.settings.kafka_group_id}"
+                f"Kafka ICU consumer started. Topic: icu-admissions, "
+                f"Group: aorta-icu-consumer-v1"
             )
 
             # Start consumption loop
             await self._consume_loop()
 
         except KafkaException as e:
-            logger.error(f"Kafka error: {e}")
+            logger.error(f"Kafka error in ICU consumer: {e}")
             raise
 
     async def _consume_loop(self):
         """Main consumption loop - runs in background task"""
 
-        logger.info("Starting Kafka consumption loop")
+        logger.info("Starting Kafka ICU consumption loop")
 
         while self.running:
             try:
@@ -103,7 +103,7 @@ class AdmissionConsumer:
                 await self._process_message(msg)
 
             except Exception as e:
-                logger.error(f"Error in consumption loop: {e}", exc_info=True)
+                logger.error(f"Error in ICU consumption loop: {e}", exc_info=True)
                 await asyncio.sleep(1)  # Brief pause before retry
 
     async def _process_message(self, msg):
@@ -117,40 +117,35 @@ class AdmissionConsumer:
             if event_data.get('test'):
                 return
 
-            # Validate and create AdmissionEvent
-            admission = AdmissionEvent(**event_data)
+            # Validate and create ICUAdmissionEvent
+            icu_admission = ICUAdmissionEvent(**event_data)
 
             # Add to circular buffer
-            self.recent_admissions.append(admission)
+            self.recent_icu_admissions.append(icu_admission)
 
-            # Log high-priority admissions
-            if admission.is_high_priority:
-                logger.info(
-                    f"🚨 High-priority admission: {admission.admission.type} - "
-                    f"Patient {admission.patient.subject_id}"
-                )
-            else:
-                logger.debug(
-                    f"📋 Admission: {admission.admission.type} - "
-                    f"Patient {admission.patient.subject_id}"
-                )
+            # Log ICU admissions
+            logger.info(
+                f"🏥 ICU admission: {icu_admission.icu_stay.first_careunit} - "
+                f"Patient {icu_admission.patient.subject_id}, "
+                f"Stay {icu_admission.icu_stay.stay_id}"
+            )
 
             # Broadcast to all SSE clients
-            await self._broadcast_to_sse(admission)
+            await self._broadcast_to_sse(icu_admission)
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to decode JSON message: {e}")
         except Exception as e:
-            logger.error(f"Failed to process message: {e}", exc_info=True)
+            logger.error(f"Failed to process ICU message: {e}", exc_info=True)
 
-    async def _broadcast_to_sse(self, admission: AdmissionEvent):
-        """Broadcast admission event to all connected SSE clients"""
+    async def _broadcast_to_sse(self, icu_admission: ICUAdmissionEvent):
+        """Broadcast ICU admission event to all connected SSE clients"""
 
         if not self.sse_queues:
             return  # No clients connected
 
         # Convert to dict for JSON serialization
-        event_dict = admission.model_dump()
+        event_dict = icu_admission.model_dump()
 
         # Send to all queues
         dead_queues = set()
@@ -160,37 +155,37 @@ class AdmissionConsumer:
                 # Non-blocking put
                 queue.put_nowait(event_dict)
             except asyncio.QueueFull:
-                logger.warning("SSE queue full, dropping event")
+                logger.warning("SSE queue full, dropping ICU event")
             except Exception as e:
-                logger.error(f"Failed to broadcast to queue: {e}")
+                logger.error(f"Failed to broadcast ICU to queue: {e}")
                 dead_queues.add(queue)
 
         # Remove dead queues
         self.sse_queues -= dead_queues
 
-        logger.debug(f"Broadcasted to {len(self.sse_queues)} SSE clients")
+        logger.debug(f"Broadcasted ICU to {len(self.sse_queues)} SSE clients")
 
-    def get_recent_admissions(self) -> List[dict]:
+    def get_recent_icu_admissions(self) -> List[dict]:
         """
-        Get recent admissions from circular buffer
+        Get recent ICU admissions from circular buffer
 
         Returns:
-            List of admission events as dictionaries (newest first)
+            List of ICU admission events as dictionaries (newest first)
         """
         # Convert deque to list and reverse (newest first)
-        return [admission.model_dump() for admission in reversed(self.recent_admissions)]
+        return [icu.model_dump() for icu in reversed(self.recent_icu_admissions)]
 
     def subscribe_sse(self) -> asyncio.Queue:
         """
         Create a new queue for an SSE client
 
         Returns:
-            asyncio.Queue for receiving admission events
+            asyncio.Queue for receiving ICU admission events
         """
         queue = asyncio.Queue(maxsize=100)
         self.sse_queues.add(queue)
 
-        logger.info(f"New SSE client subscribed. Total clients: {len(self.sse_queues)}")
+        logger.info(f"New SSE client subscribed to ICU. Total clients: {len(self.sse_queues)}")
 
         return queue
 
@@ -199,12 +194,12 @@ class AdmissionConsumer:
 
         self.sse_queues.discard(queue)
 
-        logger.info(f"SSE client unsubscribed. Total clients: {len(self.sse_queues)}")
+        logger.info(f"SSE client unsubscribed from ICU. Total clients: {len(self.sse_queues)}")
 
     async def stop(self):
         """Stop the Kafka consumer gracefully"""
 
-        logger.info("Stopping Kafka consumer...")
+        logger.info("Stopping Kafka ICU consumer...")
 
         self.running = False
 
@@ -214,4 +209,4 @@ class AdmissionConsumer:
         # Clear all SSE queues
         self.sse_queues.clear()
 
-        logger.info("Kafka consumer stopped")
+        logger.info("Kafka ICU consumer stopped")

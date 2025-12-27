@@ -17,6 +17,7 @@ const TimelineContainer = ({ patients }) => {
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [zoomDays, setZoomDays] = useState(5); // Default: 5-day view
   const [selectedLabs, setSelectedLabs] = useState(null); // For lab detail panel
+  const [expandedPatient, setExpandedPatient] = useState(null); // For ICU chartevent panel
   const { currentTime } = useSimulationClock();
 
   // Handle container resize
@@ -136,6 +137,16 @@ const TimelineContainer = ({ patients }) => {
             width={dimensions.width}
             index={index}
             onLabClick={setSelectedLabs}
+            icuStays={patient.icuStays || []}
+            chartevents={patient.chartevents || {}}
+            isExpanded={expandedPatient === patient.patient.subject_id}
+            onToggleExpand={() => {
+              setExpandedPatient(
+                expandedPatient === patient.patient.subject_id
+                  ? null
+                  : patient.patient.subject_id
+              );
+            }}
           />
         ))}
       </div>

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Orchestrator - Multi-Producer Coordination
-Coordinates multiple time-aware producers with the simulation clock
+Orchestrator - Unified Producer Coordination
+Uses a single Kafka connection to avoid DNS overload
 """
 
 import sys
@@ -10,26 +10,14 @@ import argparse
 import requests
 from pathlib import Path
 
-# Add parent directory to path to import producers
+# Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from producers.stream_admissions_coordinated import AdmissionProducer
-from producers.stream_labs import LabProducer
-from producers.stream_vitals import VitalsProducer
-from producers.stream_icu_stays import ICUStayProducer
+from producers.unified_producer import UnifiedProducer
 
 
 def wait_for_clock_service(clock_url: str, timeout: int = 30):
-    """
-    Wait for the clock service to be ready.
-
-    Args:
-        clock_url: URL of the clock service
-        timeout: Maximum seconds to wait
-
-    Raises:
-        TimeoutError: If clock service doesn't become ready in time
-    """
+    """Wait for clock service to be ready"""
     print(f"⏳ Waiting for clock service at {clock_url}...")
     start_time = time.time()
 
@@ -41,23 +29,13 @@ def wait_for_clock_service(clock_url: str, timeout: int = 30):
                 return
         except requests.exceptions.RequestException:
             pass
-
         time.sleep(1)
 
     raise TimeoutError(f"Clock service at {clock_url} did not become ready in {timeout}s")
 
 
 def start_clock(clock_url: str, tick_interval: float):
-    """
-    Start the auto-tick on the clock service.
-
-    Args:
-        clock_url: URL of the clock service
-        tick_interval: Seconds between ticks
-
-    Raises:
-        Exception: If clock fails to start
-    """
+    """Start auto-tick on clock service"""
     response = requests.post(
         f"{clock_url}/start",
         json={"interval_seconds": tick_interval},
@@ -68,12 +46,7 @@ def start_clock(clock_url: str, tick_interval: float):
 
 
 def stop_clock(clock_url: str):
-    """
-    Stop the auto-tick on the clock service.
-
-    Args:
-        clock_url: URL of the clock service
-    """
+    """Stop auto-tick on clock service"""
     try:
         response = requests.post(f"{clock_url}/stop", timeout=5)
         response.raise_for_status()
@@ -83,54 +56,42 @@ def stop_clock(clock_url: str):
 
 
 def print_header():
-    """Print orchestrator header"""
     print("=" * 80)
-    print("🏥 AORTA - MULTI-PRODUCER STREAMING ORCHESTRATOR")
+    print("🏥 AORTA - UNIFIED STREAMING ORCHESTRATOR")
     print("=" * 80)
     print()
 
 
-def print_tick_summary(tick_num: int, window_start: str, window_end: str,
-                       admission_count: int, lab_count: int, vitals_count: int,
-                       icu_count: int):
-    """
-    Print summary of a tick cycle.
-
-    Args:
-        tick_num: Tick number
-        window_start: Window start time
-        window_end: Window end time
-        admission_count: Number of admissions processed
-        lab_count: Number of labs processed
-    """
+def print_tick_summary(tick_num: int, window_start: str, window_end: str, counts: dict):
+    """Print summary of a tick cycle"""
     print(f"\n{'─' * 80}")
     print(f"⏰ Tick #{tick_num:04d}: {window_start} → {window_end}")
     print(f"{'─' * 80}")
 
-    if admission_count > 0:
-        print(f"   🏥 Admissions: {admission_count} events")
-    if lab_count > 0:
-        print(f"   🔬 Labs: {lab_count} events")
-    if vitals_count > 0:
-        print(f"   ❤️  Vitals: {vitals_count} events")
-    if icu_count > 0:
-        print(f"   🚨 ICU Admissions: {icu_count} events")
+    if counts['admissions'] > 0:
+        print(f"   🏥 Admissions: {counts['admissions']} events")
+    if counts['labs'] > 0:
+        print(f"   🔬 Labs: {counts['labs']} events")
+    if counts['vitals'] > 0:
+        print(f"   ❤️  Vitals: {counts['vitals']} events")
+    if counts['icu'] > 0:
+        print(f"   🚨 ICU Admissions: {counts['icu']} events")
 
-    if admission_count == 0 and lab_count == 0 and vitals_count == 0 and icu_count == 0:
+    total = sum(counts.values())
+    if total == 0:
         print(f"   📭 No events in this window")
 
 
 def main():
-    """Main orchestrator function"""
-
     parser = argparse.ArgumentParser(
-        description='Coordinate multi-producer streaming with simulation clock'
+        description='Unified producer streaming with simulation clock'
     )
     parser.add_argument(
         '--subject-ids',
         type=int,
         nargs='+',
-        help='Filter by patient IDs (space-separated, e.g., --subject-ids 10003400 10006701 10007218)'
+        required=True,
+        help='Patient IDs to filter by (required, e.g., --subject-ids 10003400 10006701)'
     )
     parser.add_argument(
         '--tick-interval',
@@ -152,7 +113,7 @@ def main():
     parser.add_argument(
         '--start-time',
         type=str,
-        help='Simulation start time (YYYY-MM-DD HH:MM:SS). If not provided, uses clock default.'
+        help='Simulation start time (YYYY-MM-DD HH:MM:SS)'
     )
     parser.add_argument(
         '--tick-minutes',
@@ -172,10 +133,7 @@ def main():
     print(f"   Tick window size: {args.tick_minutes} minutes")
     if args.start_time:
         print(f"   Start time: {args.start_time}")
-    if args.subject_ids:
-        print(f"   Patient filter: {', '.join(map(str, args.subject_ids))}")
-    else:
-        print(f"   Patient filter: ALL patients")
+    print(f"   Patient filter: {', '.join(map(str, args.subject_ids))}")
     if args.max_ticks:
         print(f"   Max ticks: {args.max_ticks}")
     print()
@@ -190,7 +148,7 @@ def main():
         print("   uvicorn main:app --reload --port 9000")
         return 1
 
-    # Reset clock with custom start time if provided
+    # Reset clock if start time provided
     if args.start_time:
         print(f"\n⏰ Resetting clock to start time: {args.start_time}")
         try:
@@ -199,7 +157,7 @@ def main():
                 json={
                     "start_time": args.start_time,
                     "tick_minutes": args.tick_minutes,
-                    "tick_interval_seconds": args.tick_interval  # Pass tick interval to clock
+                    "tick_interval_seconds": args.tick_interval
                 },
                 timeout=5
             )
@@ -209,55 +167,41 @@ def main():
             print(f"   ❌ Failed to reset clock: {e}")
             return 1
 
-    # Initialize producers
-    print("\n🔧 Initializing producers...")
+    # Initialize unified producer
+    print("\n🔧 Initializing unified producer...")
     try:
-        admission_producer = AdmissionProducer(
-            clock_url=args.clock_url,
-            subject_ids=args.subject_ids  # Pass list of subject IDs
-        )
-        lab_producer = LabProducer(
-            clock_url=args.clock_url,
-            subject_ids=args.subject_ids  # Pass list of subject IDs
-        )
-        vitals_producer = VitalsProducer(
+        producer = UnifiedProducer(
             clock_url=args.clock_url,
             subject_ids=args.subject_ids
         )
-        icu_producer = ICUStayProducer(
-            clock_url=args.clock_url,
-            subject_ids=args.subject_ids
-        )
+        if not producer.warm_up():
+            print("   ⚠️  Producer warm-up failed, continuing anyway...")
     except Exception as e:
-        print(f"❌ Failed to initialize producers: {e}")
+        print(f"❌ Failed to initialize producer: {e}")
         return 1
 
-    print("\n✅ All producers initialized")
+    print("\n✅ Producer initialized")
 
-    # Start clock auto-tick
+    # Start clock
     try:
         start_clock(args.clock_url, args.tick_interval)
     except Exception as e:
         print(f"❌ Failed to start clock: {e}")
-        admission_producer.close()
-        lab_producer.close()
+        producer.close()
         return 1
 
-    # Main processing loop
+    # Main loop
     print("\n🚀 Starting stream processing...")
     print("   Press Ctrl+C to stop\n")
 
     tick_count = 0
-    total_admissions = 0
-    total_labs = 0
-    total_vitals = 0
-    total_icus = 0
+    totals = {'admissions': 0, 'labs': 0, 'icu': 0, 'vitals': 0}
 
     try:
         while True:
             tick_count += 1
 
-            # Get current window from clock
+            # Get current window
             try:
                 response = requests.get(f"{args.clock_url}/current", timeout=5)
                 response.raise_for_status()
@@ -269,71 +213,48 @@ def main():
                 time.sleep(args.tick_interval)
                 continue
 
-            # Process tick for each producer
+            # Process tick
             try:
-                admission_count = admission_producer.process_tick()
-                lab_count = lab_producer.process_tick()
-                vitals_count = vitals_producer.process_tick()
-                icu_count = icu_producer.process_tick()
+                counts = producer.process_tick()
             except Exception as e:
                 print(f"⚠️  Error processing tick: {e}")
                 time.sleep(args.tick_interval)
                 continue
 
             # Update totals
-            total_admissions += admission_count
-            total_labs += lab_count
-            total_vitals += vitals_count
-            total_icus += icu_count
+            for key in totals:
+                totals[key] += counts[key]
 
             # Print summary
-            print_tick_summary(
-                tick_count,
-                window_start,
-                window_end,
-                admission_count,
-                lab_count,
-                vitals_count,
-                icu_count
-            )
+            print_tick_summary(tick_count, window_start, window_end, counts)
 
-            # Check if we've hit max ticks
+            # Check max ticks
             if args.max_ticks and tick_count >= args.max_ticks:
                 print(f"\n✅ Reached max ticks ({args.max_ticks})")
                 break
 
-            # Wait for next tick (moved to end so first window is processed immediately)
             time.sleep(args.tick_interval)
 
     except KeyboardInterrupt:
         print("\n\n⚠️  Interrupted by user")
 
     finally:
-        # Cleanup
         print("\n🧹 Cleaning up...")
         stop_clock(args.clock_url)
+        print("⏳ Flushing producer...")
+        producer.flush()
+        producer.close()
 
-        print("⏳ Flushing producers...")
-        admission_producer.flush()
-        lab_producer.flush()
-        vitals_producer.flush()
-        icu_producer.flush()
-
-        admission_producer.close()
-        lab_producer.close()
-        vitals_producer.close()
-        icu_producer.close()
-
-        # Print final summary
+        # Final summary
         print("\n" + "=" * 80)
         print("📊 FINAL SUMMARY")
         print("=" * 80)
         print(f"Total ticks processed: {tick_count}")
-        print(f"Total admissions streamed: {total_admissions}")
-        print(f"Total labs streamed: {total_labs}")
-        print(f"Total vitals streamed: {total_vitals}")
-        print(f"Total ICU admissions streamed: {total_icus}")
-        print(f"Total events: {total_admissions + total_labs + total_vitals + total_icus}")
+        print(f"Total admissions: {totals['admissions']}")
+        print(f"Total labs: {totals['labs']}")
+        print(f"Total vitals: {totals['vitals']}")
+        print(f"Total ICU admissions: {totals['icu']}")
+        print(f"Total events: {sum(totals.values())}")
         print("\n✅ Orchestrator shutdown complete")
 
     return 0

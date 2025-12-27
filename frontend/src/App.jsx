@@ -13,17 +13,20 @@ import { ClockProvider } from './contexts/ClockContext';
 import './App.css';
 
 function App() {
-  // Connect to both SSE streams
+  // Connect to all SSE streams
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
   const { patients, connectionStatus } = useMultiStreamSSE(
     `${API_URL}/stream/admissions`,
     `${API_URL}/stream/labs`,
+    `${API_URL}/stream/icu-admissions`,
+    `${API_URL}/stream/vitals`,
     20 // Max patients
   );
 
   // Calculate statistics
   const totalAdmissions = patients.reduce((sum, p) => sum + p.admissions.length, 0);
   const totalLabs = patients.reduce((sum, p) => sum + p.labs.length, 0);
+  const icuPatients = patients.filter(p => p.icuStays && p.icuStays.length > 0).length;
   const abnormalLabs = patients.reduce(
     (sum, p) => sum + p.labs.filter(lab =>
       lab.lab.flag && lab.lab.flag.toUpperCase() === 'ABNORMAL'
@@ -32,12 +35,15 @@ function App() {
   );
 
   // Overall connection status
-  const overallStatus =
-    connectionStatus.admissions === 'connected' && connectionStatus.labs === 'connected'
-      ? 'connected'
-      : connectionStatus.admissions === 'connecting' || connectionStatus.labs === 'connecting'
-      ? 'connecting'
-      : 'disconnected';
+  const allConnected = connectionStatus.admissions === 'connected' &&
+                       connectionStatus.labs === 'connected' &&
+                       connectionStatus.icu === 'connected' &&
+                       connectionStatus.vitals === 'connected';
+  const anyConnecting = connectionStatus.admissions === 'connecting' ||
+                        connectionStatus.labs === 'connecting' ||
+                        connectionStatus.icu === 'connecting' ||
+                        connectionStatus.vitals === 'connecting';
+  const overallStatus = allConnected ? 'connected' : (anyConnecting ? 'connecting' : 'disconnected');
 
   return (
     <ClockProvider>
@@ -51,6 +57,10 @@ function App() {
           Admissions
           <span className={`status-dot ${connectionStatus.labs}`} style={{ marginLeft: '16px' }}></span>
           Labs
+          <span className={`status-dot ${connectionStatus.icu}`} style={{ marginLeft: '16px' }}></span>
+          ICU
+          <span className={`status-dot ${connectionStatus.vitals}`} style={{ marginLeft: '16px' }}></span>
+          Vitals
         </div>
       </div>
 
@@ -63,6 +73,11 @@ function App() {
         <div className="stat-card">
           <div className="stat-label">Admissions</div>
           <strong>{totalAdmissions}</strong>
+        </div>
+
+        <div className="stat-card highlight">
+          <div className="stat-label">ICU Patients</div>
+          <strong>{icuPatients}</strong>
         </div>
 
         <div className="stat-card">

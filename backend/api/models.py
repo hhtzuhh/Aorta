@@ -140,3 +140,56 @@ class LabEvent(BaseModel):
         Determine if lab result is abnormal based on flag field
         """
         return self.lab.flag and self.lab.flag.upper() == "ABNORMAL"
+
+
+class ICUStay(BaseModel):
+    """ICU stay details"""
+
+    stay_id: str
+    first_careunit: Optional[str] = None
+    last_careunit: Optional[str] = None
+    intime: Optional[str] = None
+    outtime: Optional[str] = None
+    los_days: Optional[float] = None
+    status: Optional[str] = None
+    is_transfer: bool = False
+
+
+class ICUAdmissionEvent(BaseModel):
+    """
+    Complete ICU admission event from Kafka
+
+    Matches the JSON structure for ICU_ADMISSION events
+    """
+
+    event_type: str
+    event_time: str
+    patient: PatientReference
+    admission: AdmissionReference
+    icu_stay: ICUStay
+
+
+class CharteventData(BaseModel):
+    """Chartevent (vital sign) details"""
+
+    itemid: int
+    label: str
+    category: str
+    param_type: str
+    value_text: Optional[str] = None
+    value_numeric: Optional[float] = None
+    unit: Optional[str] = None
+
+
+class CharteventEvent(BaseModel):
+    """
+    Complete chartevent (vital sign) event from Kafka
+
+    Matches the JSON structure for CHARTEVENT events
+    """
+
+    event_type: str
+    event_time: str
+    patient: PatientReference
+    icu_stay: ICUStay
+    chartevent: CharteventData

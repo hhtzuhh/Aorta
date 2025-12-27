@@ -151,6 +151,29 @@
   color: #6b7280;
 }
 
+/* ICU Badge */
+.icu-badge {
+  display: inline-block;
+  background: #ef4444;
+  color: white;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 2px 4px;
+  border-radius: 3px;
+  margin-left: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ICU Patient Row Hover */
+.timeline-row.icu-patient {
+  transition: background-color 0.2s;
+}
+
+.timeline-row.icu-patient:hover {
+  background: #fef2f2;
+}
+
 /* Timeline SVG */
 .timeline-svg {
   flex: 1;

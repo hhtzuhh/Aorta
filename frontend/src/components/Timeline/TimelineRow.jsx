@@ -7,14 +7,28 @@
 import { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { useSimulationClock } from '../../contexts/ClockContext';
+import CharteventPanel from './CharteventPanel';
 
-const TimelineRow = ({ patient, timeScale, width, index, onLabClick }) => {
+const TimelineRow = ({
+  patient,
+  timeScale,
+  width,
+  index,
+  onLabClick,
+  icuStays = [],
+  chartevents = {},
+  isExpanded = false,
+  onToggleExpand
+}) => {
   const svgRef = useRef(null);
   const [tooltip, setTooltip] = useState(null);
   const { currentTime } = useSimulationClock();
 
   const ROW_HEIGHT = 60;
   const BAR_HEIGHT = 30;
+
+  // Check if patient has ICU stay
+  const hasICU = icuStays && icuStays.length > 0;
 
   // Color mapping for admission types
   const admissionColors = {
@@ -29,6 +43,10 @@ const TimelineRow = ({ patient, timeScale, width, index, onLabClick }) => {
   };
 
   const getAdmissionColor = (type) => {
+    // Override with ICU red color if patient has ICU stay
+    if (hasICU) {
+      return '#ef4444'; // Tailwind red-500 for ICU patients
+    }
     return admissionColors[type] || '#6b7280'; // Default gray
   };
 
@@ -233,10 +251,20 @@ const TimelineRow = ({ patient, timeScale, width, index, onLabClick }) => {
 
   return (
     <>
-      <div className="timeline-row" style={{ height: ROW_HEIGHT }}>
+      <div
+        className={`timeline-row ${hasICU ? 'icu-patient' : ''}`}
+        onClick={hasICU && onToggleExpand ? onToggleExpand : undefined}
+        style={{
+          height: ROW_HEIGHT,
+          cursor: hasICU ? 'pointer' : 'default'
+        }}
+      >
         {/* Patient label on left */}
         <div className="timeline-patient-label">
-          <div className="patient-id">{patient.patient.subject_id}</div>
+          <div className="patient-id">
+            {patient.patient.subject_id}
+            {hasICU && <span className="icu-badge">ICU</span>}
+          </div>
           <div className="patient-info">
             {patient.patient.age ? `${patient.patient.age}y` : '?'}
             {patient.patient.gender ? `, ${patient.patient.gender}` : ''}
@@ -251,6 +279,14 @@ const TimelineRow = ({ patient, timeScale, width, index, onLabClick }) => {
           className="timeline-svg"
         ></svg>
       </div>
+
+      {/* Expandable Chartevent Panel */}
+      {isExpanded && hasICU && (
+        <CharteventPanel
+          chartevents={chartevents}
+          width={timelineWidth}
+        />
+      )}
 
       {/* Tooltip */}
       {tooltip && (

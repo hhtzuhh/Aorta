@@ -15,9 +15,13 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
 
+# Pre-import anyio backends to avoid lazy import race condition
+import anyio._backends._asyncio
+import anyio._core._eventloop
+import anyio._core._synchronization
+
 from .config import settings
-from .kafka_consumer import AdmissionConsumer
-from .lab_consumer import LabConsumer
+from .unified_consumer import UnifiedConsumer
 
 # Configure logging
 logging.basicConfig(
@@ -26,43 +30,34 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Global consumer instances
-consumer: AdmissionConsumer = None
-lab_consumer: LabConsumer = None
+# Global unified consumer instance
+unified_consumer: UnifiedConsumer = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan - startup and shutdown"""
 
-    # Startup
-    global consumer, lab_consumer
+    global unified_consumer
     logger.info("Starting Aorta Backend API...")
 
     try:
-        # Initialize Kafka consumers
-        consumer = AdmissionConsumer(settings)
-        lab_consumer = LabConsumer(settings)
+        # Initialize single unified Kafka consumer for all topics
+        logger.info("Initializing unified Kafka consumer...")
+        unified_consumer = UnifiedConsumer(settings)
+        asyncio.create_task(unified_consumer.start())
 
-        # Start consuming in background tasks
-        asyncio.create_task(consumer.start())
-        asyncio.create_task(lab_consumer.start())
-
-        logger.info("✅ Kafka consumers started successfully")
-        logger.info(f"📡 Listening to topics: {settings.kafka_topic}, patient-labs")
+        logger.info("✅ Unified Kafka consumer started")
+        logger.info(f"📡 Listening to topics: {settings.kafka_topic}, patient-labs, icu-admissions, patient-vitals")
         logger.info(f"🌐 CORS origins: {settings.cors_origins}")
 
         yield
 
     finally:
-        # Shutdown
         logger.info("Shutting down Aorta Backend API...")
 
-        if consumer:
-            await consumer.stop()
-
-        if lab_consumer:
-            await lab_consumer.stop()
+        if unified_consumer:
+            await unified_consumer.stop()
 
         logger.info("✅ Shutdown complete")
 
@@ -96,194 +91,197 @@ async def root():
             "health": "/health",
             "admissions": "/api/admissions",
             "labs": "/api/labs",
+            "icu_admissions": "/api/icu-admissions",
+            "vitals": "/api/vitals",
             "stream_admissions": "/stream/admissions",
             "stream_labs": "/stream/labs",
+            "stream_icu_admissions": "/stream/icu-admissions",
+            "stream_vitals": "/stream/vitals",
         }
     }
 
 
 @app.get("/health")
 async def health_check():
-    """
-    Health check endpoint
-
-    Returns service health status
-    """
+    """Health check endpoint"""
     return {
         "status": "healthy",
-        "admission_consumer_running": consumer.running if consumer else False,
-        "lab_consumer_running": lab_consumer.running if lab_consumer else False,
-        "admission_sse_clients": len(consumer.sse_queues) if consumer else 0,
-        "lab_sse_clients": len(lab_consumer.sse_queues) if lab_consumer else 0,
-        "recent_admissions": len(consumer.recent_admissions) if consumer else 0,
-        "recent_labs": len(lab_consumer.recent_labs) if lab_consumer else 0,
+        "consumer_running": unified_consumer.running if unified_consumer else False,
+        "admission_sse_clients": len(unified_consumer.admission_sse_queues) if unified_consumer else 0,
+        "lab_sse_clients": len(unified_consumer.lab_sse_queues) if unified_consumer else 0,
+        "icu_sse_clients": len(unified_consumer.icu_sse_queues) if unified_consumer else 0,
+        "vitals_sse_clients": len(unified_consumer.vitals_sse_queues) if unified_consumer else 0,
+        "recent_admissions": len(unified_consumer.recent_admissions) if unified_consumer else 0,
+        "recent_labs": len(unified_consumer.recent_labs) if unified_consumer else 0,
+        "recent_icu_admissions": len(unified_consumer.recent_icu_admissions) if unified_consumer else 0,
+        "recent_chartevents": len(unified_consumer.recent_chartevents) if unified_consumer else 0,
     }
 
 
 @app.get("/api/admissions")
 async def get_recent_admissions() -> List[dict]:
-    """
-    Get recent admissions (REST endpoint)
-
-    Returns the last 50 admissions from the circular buffer.
-    """
-    if not consumer:
+    """Get recent admissions"""
+    if not unified_consumer:
         return []
-
-    return consumer.get_recent_admissions()
+    return unified_consumer.get_recent_admissions()
 
 
 @app.get("/stream/admissions")
 async def stream_admissions(request: Request):
-    """
-    Server-Sent Events endpoint for real-time admission stream
-
-    Clients connect to this endpoint to receive admission events
-    as they arrive from Kafka.
-
-    Returns:
-        EventSourceResponse: SSE stream
-    """
-
-    if not consumer:
-        logger.error("Consumer not initialized")
+    """SSE endpoint for admission stream"""
+    if not unified_consumer:
         return {"error": "Consumer not available"}
 
-    # Subscribe to SSE updates
-    queue = consumer.subscribe_sse()
+    queue = unified_consumer.subscribe_admissions()
 
     async def event_generator():
-        """Generate SSE events from queue"""
-
         try:
-            # Send initial connection message
             yield {
                 "event": "connected",
-                "data": json.dumps({
-                    "message": "Connected to admission stream",
-                    "timestamp": str(asyncio.get_event_loop().time())
-                })
+                "data": json.dumps({"message": "Connected to admission stream"})
             }
 
             while True:
-                # Check if client disconnected
                 if await request.is_disconnected():
-                    logger.info("Client disconnected from SSE stream")
                     break
 
                 try:
-                    # Wait for event from queue (with timeout for heartbeat)
                     event = await asyncio.wait_for(queue.get(), timeout=30.0)
-
-                    # Send admission event
-                    yield {
-                        "event": "admission",
-                        "data": json.dumps(event)
-                    }
-
+                    yield {"event": "admission", "data": json.dumps(event)}
                 except asyncio.TimeoutError:
-                    # Send heartbeat/keep-alive comment
-                    yield {
-                        "comment": "keepalive"
-                    }
+                    yield {"comment": "keepalive"}
 
         except asyncio.CancelledError:
             logger.info("SSE stream cancelled")
-
         finally:
-            # Clean up: unsubscribe from consumer
-            consumer.unsubscribe_sse(queue)
-            logger.info("SSE client cleanup complete")
+            unified_consumer.unsubscribe_admissions(queue)
 
     return EventSourceResponse(event_generator())
 
 
 @app.get("/api/labs")
 async def get_recent_labs() -> List[dict]:
-    """
-    Get recent labs (REST endpoint)
-
-    Returns the last 200 labs from the circular buffer.
-    """
-    if not lab_consumer:
+    """Get recent labs"""
+    if not unified_consumer:
         return []
-
-    return lab_consumer.get_recent_labs()
+    return unified_consumer.get_recent_labs()
 
 
 @app.get("/stream/labs")
 async def stream_labs(request: Request):
-    """
-    Server-Sent Events endpoint for real-time lab stream
+    """SSE endpoint for lab stream"""
+    if not unified_consumer:
+        return {"error": "Consumer not available"}
 
-    Clients connect to this endpoint to receive lab events
-    as they arrive from Kafka.
-
-    Returns:
-        EventSourceResponse: SSE stream
-    """
-
-    if not lab_consumer:
-        logger.error("Lab consumer not initialized")
-        return {"error": "Lab consumer not available"}
-
-    # Subscribe to SSE updates
-    queue = lab_consumer.subscribe_sse()
+    queue = unified_consumer.subscribe_labs()
 
     async def event_generator():
-        """Generate SSE events from queue"""
-
         try:
-            # Send initial connection message
             yield {
                 "event": "connected",
-                "data": json.dumps({
-                    "message": "Connected to lab stream",
-                    "timestamp": str(asyncio.get_event_loop().time())
-                })
+                "data": json.dumps({"message": "Connected to lab stream"})
             }
 
             while True:
-                # Check if client disconnected
                 if await request.is_disconnected():
-                    logger.info("Client disconnected from lab SSE stream")
                     break
 
                 try:
-                    # Wait for event from queue (with timeout for heartbeat)
                     event = await asyncio.wait_for(queue.get(), timeout=30.0)
-
-                    # Send lab event
-                    yield {
-                        "event": "lab",
-                        "data": json.dumps(event)
-                    }
-
+                    yield {"event": "lab", "data": json.dumps(event)}
                 except asyncio.TimeoutError:
-                    # Send heartbeat/keep-alive comment
-                    yield {
-                        "comment": "keepalive"
-                    }
+                    yield {"comment": "keepalive"}
 
         except asyncio.CancelledError:
             logger.info("Lab SSE stream cancelled")
-
         finally:
-            # Clean up: unsubscribe from consumer
-            lab_consumer.unsubscribe_sse(queue)
-            logger.info("Lab SSE client cleanup complete")
+            unified_consumer.unsubscribe_labs(queue)
 
     return EventSourceResponse(event_generator())
 
 
-# Development server
+@app.get("/api/icu-admissions")
+async def get_recent_icu_admissions() -> List[dict]:
+    """Get recent ICU admissions"""
+    if not unified_consumer:
+        return []
+    return unified_consumer.get_recent_icu_admissions()
+
+
+@app.get("/stream/icu-admissions")
+async def stream_icu_admissions(request: Request):
+    """SSE endpoint for ICU admission stream"""
+    if not unified_consumer:
+        return {"error": "Consumer not available"}
+
+    queue = unified_consumer.subscribe_icu()
+
+    async def event_generator():
+        try:
+            yield {
+                "event": "connected",
+                "data": json.dumps({"message": "Connected to ICU stream"})
+            }
+
+            while True:
+                if await request.is_disconnected():
+                    break
+
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    yield {"event": "icu", "data": json.dumps(event)}
+                except asyncio.TimeoutError:
+                    yield {"comment": "keepalive"}
+
+        except asyncio.CancelledError:
+            logger.info("ICU SSE stream cancelled")
+        finally:
+            unified_consumer.unsubscribe_icu(queue)
+
+    return EventSourceResponse(event_generator())
+
+
+@app.get("/api/vitals")
+async def get_recent_vitals() -> List[dict]:
+    """Get recent vitals/chartevents"""
+    if not unified_consumer:
+        return []
+    return unified_consumer.get_recent_chartevents()
+
+
+@app.get("/stream/vitals")
+async def stream_vitals(request: Request):
+    """SSE endpoint for vitals stream"""
+    if not unified_consumer:
+        return {"error": "Consumer not available"}
+
+    queue = unified_consumer.subscribe_vitals()
+
+    async def event_generator():
+        try:
+            yield {
+                "event": "connected",
+                "data": json.dumps({"message": "Connected to vitals stream"})
+            }
+
+            while True:
+                if await request.is_disconnected():
+                    break
+
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    yield {"event": "chartevent", "data": json.dumps(event)}
+                except asyncio.TimeoutError:
+                    yield {"comment": "keepalive"}
+
+        except asyncio.CancelledError:
+            logger.info("Vitals SSE stream cancelled")
+        finally:
+            unified_consumer.unsubscribe_vitals(queue)
+
+    return EventSourceResponse(event_generator())
+
+
 if __name__ == "__main__":
     import uvicorn
-
-    uvicorn.run(
-        "backend.api.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
-    )
+    uvicorn.run("backend.api.main:app", host="0.0.0.0", port=8000, reload=True)
