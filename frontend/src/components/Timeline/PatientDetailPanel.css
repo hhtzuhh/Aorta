@@ -1,0 +1,575 @@
+/* Patient Detail Panel */
+.patient-detail-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: white;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow-y: auto;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Panel Close Button */
+.panel-close-btn {
+  position: fixed;
+  top: 20px;
+  right: 30px;
+  background: rgba(102, 126, 234, 0.1);
+  border: 2px solid #667eea;
+  color: #667eea;
+  font-size: 24px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: all 0.2s;
+  font-weight: bold;
+  z-index: 1001;
+}
+
+.panel-close-btn:hover {
+  background: #667eea;
+  color: white;
+}
+
+/* Panel Sections */
+.panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 30px;
+  border-bottom: 2px solid #e5e7eb;
+  background: white;
+}
+
+.panel-section:last-child {
+  border-bottom: none;
+}
+
+.panel-section h3 {
+  margin: 0 0 12px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2937;
+  border-bottom: 2px solid #667eea;
+  padding-bottom: 8px;
+}
+
+.panel-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Info Grid */
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.info-label {
+  font-size: 11px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.info-value {
+  font-size: 16px;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+/* ICU Buttons */
+.icu-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 15px;
+  overflow-x: auto;
+  padding-bottom: 10px;
+}
+
+.icu-buttons > div {
+  min-width: 300px;
+  flex-shrink: 0;
+}
+
+.icu-stay-button {
+  background: white;
+  border: 2px solid #f97316;
+  border-radius: 8px;
+  padding: 12px 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+}
+
+.icu-stay-button:hover {
+  background: #fff7ed;
+  transform: translateX(-2px);
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.2);
+}
+
+.icu-stay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.icu-stay-number {
+  font-weight: 700;
+  color: #f97316;
+  font-size: 13px;
+}
+
+.icu-stay-unit {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.icu-stay-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: #4b5563;
+}
+
+.icu-stay-los {
+  font-weight: 600;
+  color: #f97316;
+  margin-top: 4px;
+}
+
+/* Lab Navigation */
+.section-header-with-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.section-header-with-nav h4 {
+  margin: 0;
+}
+
+.lab-navigation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-btn {
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  color: #374151;
+  transition: all 0.2s;
+}
+
+.nav-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #6366f1;
+  color: #6366f1;
+}
+
+.nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.lab-counter {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  min-width: 50px;
+  text-align: center;
+}
+
+/* Lab Detail Card */
+.lab-batch-card {
+  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.lab-batch-time {
+  font-size: 13px;
+  font-weight: 600;
+  color: #667eea;
+  margin-bottom: 12px;
+  font-family: 'Courier New', monospace;
+}
+
+.lab-batch-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lab-item {
+  background: white;
+  border-radius: 6px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.lab-item.abnormal {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+
+.lab-detail-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lab-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.lab-test-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.lab-test-name.abnormal {
+  color: #dc2626;
+}
+
+.lab-flag {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.lab-flag.abnormal {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #dc2626;
+}
+
+.lab-flag.normal {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #16a34a;
+}
+
+.lab-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.value-number {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.value-number.abnormal {
+  color: #dc2626;
+}
+
+.value-unit {
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.lab-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lab-time {
+  font-size: 11px;
+  color: #6b7280;
+  font-family: 'Courier New', monospace;
+}
+
+.lab-ref-range {
+  font-size: 11px;
+  color: #4b5563;
+  font-style: italic;
+}
+
+/* Lab List Preview */
+.lab-list-preview {
+  margin-top: 16px;
+}
+
+.preview-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.lab-preview-scroll {
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lab-preview-item {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.lab-preview-item:hover {
+  background: #f9fafb;
+  border-color: #6366f1;
+}
+
+.lab-preview-item.active {
+  background: #eef2ff;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+}
+
+.preview-test-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.preview-value {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+/* Empty State */
+.empty-state-small {
+  text-align: center;
+  padding: 40px 20px;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+/* Scrollbar */
+.lab-preview-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.lab-preview-scroll::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 3px;
+}
+
+.lab-preview-scroll::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.lab-preview-scroll::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Vital Signs Chart */
+.vitals-chart {
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 10px;
+}
+
+.vitals-chart h4 {
+  margin: 12px 0 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.vitals-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.vital-row-chart {
+  background: white;
+  border-radius: 6px;
+  padding: 16px;
+  margin: 8px 0;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.vital-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.vital-row-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.vital-row-latest {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.vital-row-graph {
+  width: 100%;
+}
+
+/* Non-numeric vitals */
+.vital-text-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.vital-text-badge {
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vital-text-badge:hover {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+  transform: translateY(-1px);
+}
+
+.vital-text-badge-time {
+  color: #6b7280;
+  font-size: 10px;
+}
+
+.vital-text-badge-value {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.vital-item {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 13px;
+}
+
+.vital-item:last-child {
+  border-bottom: none;
+}
+
+.vital-label {
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.vital-value {
+  color: #1f2937;
+  font-family: 'Courier New', monospace;
+}
+
+.icu-timeline {
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  border-left: 4px solid #f97316;
+}
+
+.icu-timeline-time {
+  font-size: 12px;
+  color: #6b7280;
+  font-family: 'Courier New', monospace;
+  margin-bottom: 4px;
+}
+
+.icu-timeline-duration {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f97316;
+}
+
+/* Make demographics section more compact */
+.panel-section .info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+}

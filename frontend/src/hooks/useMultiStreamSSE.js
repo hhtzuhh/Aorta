@@ -231,7 +231,10 @@ export const useMultiStreamSSE = (admissionsUrl, labsUrl, icuUrl, vitalsUrl, max
                     stay_id: icuAdmission.icu_stay.stay_id,
                     intime: icuAdmission.icu_stay.intime,
                     outtime: icuAdmission.icu_stay.outtime,
-                    careunit: icuAdmission.icu_stay.first_careunit,
+                    careunit: icuAdmission.icu_stay.first_careunit || icuAdmission.icu_stay.last_careunit,
+                    first_careunit: icuAdmission.icu_stay.first_careunit,
+                    last_careunit: icuAdmission.icu_stay.last_careunit,
+                    los_days: icuAdmission.icu_stay.los_days,
                     status: icuAdmission.icu_stay.status
                   }]
                 });
@@ -246,7 +249,10 @@ export const useMultiStreamSSE = (admissionsUrl, labsUrl, icuUrl, vitalsUrl, max
                   stay_id: icuAdmission.icu_stay.stay_id,
                   intime: icuAdmission.icu_stay.intime,
                   outtime: icuAdmission.icu_stay.outtime,
-                  careunit: icuAdmission.icu_stay.first_careunit,
+                  careunit: icuAdmission.icu_stay.first_careunit || icuAdmission.icu_stay.last_careunit,
+                  first_careunit: icuAdmission.icu_stay.first_careunit,
+                  last_careunit: icuAdmission.icu_stay.last_careunit,
+                  los_days: icuAdmission.icu_stay.los_days,
                   status: icuAdmission.icu_stay.status
                 }],
                 chartevents: {},

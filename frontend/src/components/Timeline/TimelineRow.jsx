@@ -7,25 +7,23 @@
 import { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { useSimulationClock } from '../../contexts/ClockContext';
-import CharteventPanel from './CharteventPanel';
 
 const TimelineRow = ({
   patient,
   timeScale,
   width,
   index,
+  onRowClick,
   onLabClick,
-  icuStays = [],
-  chartevents = {},
-  isExpanded = false,
-  onToggleExpand
+  icuStays = []
 }) => {
   const svgRef = useRef(null);
   const [tooltip, setTooltip] = useState(null);
   const { currentTime } = useSimulationClock();
 
-  const ROW_HEIGHT = 60;
-  const BAR_HEIGHT = 30;
+  const ROW_HEIGHT = 70;        // Increased for padding
+  const BAR_HEIGHT = 28;        // Slightly smaller bar
+  const VERTICAL_PADDING = 10;  // Padding top/bottom
 
   // Check if patient has ICU stay
   const hasICU = icuStays && icuStays.length > 0;
@@ -43,12 +41,11 @@ const TimelineRow = ({
   };
 
   const getAdmissionColor = (type) => {
-    // Override with ICU red color if patient has ICU stay
-    if (hasICU) {
-      return '#ef4444'; // Tailwind red-500 for ICU patients
-    }
     return admissionColors[type] || '#6b7280'; // Default gray
   };
+
+  // ICU segment color (distinct from regular admissions)
+  const ICU_COLOR = '#f97316'; // Orange for ICU periods
 
   useEffect(() => {
     if (!svgRef.current || !timeScale) {
@@ -74,19 +71,6 @@ const TimelineRow = ({
       const x1 = timeScale(admitTime);
       const xPlanned = timeScale(plannedDischarge);
 
-      // GHOST BAR: Full planned duration (faint, dashed)
-      g.append('rect')
-        .attr('x', x1)
-        .attr('y', (ROW_HEIGHT - BAR_HEIGHT) / 2)
-        .attr('width', Math.max(xPlanned - x1, 2))
-        .attr('height', BAR_HEIGHT)
-        .attr('rx', 4)
-        .attr('fill', getAdmissionColor(admission.admission.type))
-        .attr('opacity', 0.2)  // Faint
-        .attr('stroke', getAdmissionColor(admission.admission.type))
-        .attr('stroke-width', 1)
-        .attr('stroke-dasharray', '4,4');  // Dashed outline
-
       // Skip solid bar if admission hasn't started yet
       if (currentSimTime < admitTime) {
         return;
@@ -104,7 +88,7 @@ const TimelineRow = ({
       const rect = g
         .append('rect')
         .attr('x', x1)
-        .attr('y', (ROW_HEIGHT - BAR_HEIGHT) / 2)
+        .attr('y', VERTICAL_PADDING)
         .attr('width', Math.max(x2 - x1, 2))
         .attr('height', BAR_HEIGHT)
         .attr('rx', 4)
@@ -140,64 +124,61 @@ const TimelineRow = ({
         setTooltip(null);
       });
 
-      // Group labs by timestamp within this admission period
-      const labsByTime = new Map();
-      patient.labs.forEach((lab) => {
-        const labTime = new Date(lab.event_time);
-        if (labTime >= admitTime && labTime <= plannedDischarge) {
-          const timeKey = labTime.getTime();
-          if (!labsByTime.has(timeKey)) {
-            labsByTime.set(timeKey, []);
-          }
-          labsByTime.get(timeKey).push(lab);
+    });
+
+    // Draw ICU stay segments (overlaid on admission bars)
+    if (icuStays && icuStays.length > 0) {
+      icuStays.forEach((icuStay) => {
+        const icuInTime = new Date(icuStay.intime);
+        const icuOutTime = icuStay.outtime ? new Date(icuStay.outtime) : new Date(icuInTime.getTime() + 48 * 60 * 60 * 1000); // Default 2 days if no outtime
+
+        const currentSimTime = currentTime ? new Date(currentTime) : new Date();
+
+        // Calculate positions
+        const xIcuIn = timeScale(icuInTime);
+        const xIcuPlanned = timeScale(icuOutTime);
+
+        // Skip solid ICU bar if hasn't started yet
+        if (currentSimTime < icuInTime) {
+          return;
         }
-      });
 
-      // Draw grouped lab markers
-      labsByTime.forEach((labs, timeKey) => {
-        const labTime = new Date(timeKey);
-        const labX = timeScale(labTime);
-        const labY = ROW_HEIGHT / 2;
+        // Current ICU bar ends at MIN(currentSimTime, icuOutTime)
+        const actualIcuEnd = currentSimTime < icuOutTime ? currentSimTime : icuOutTime;
+        const xIcuEnd = timeScale(actualIcuEnd);
 
-        const isMultiple = labs.length > 1;
+        // Determine opacity based on completion
+        const isIcuCompleted = currentSimTime >= icuOutTime;
+        const icuOpacity = isIcuCompleted ? 0.6 : 0.85;
 
-        const circle = g
-          .append('circle')
-          .attr('cx', labX)
-          .attr('cy', labY)
-          .attr('r', isMultiple ? 7 : 6)  // Slightly larger to fit "L"
-          .attr('fill', '#6366f1')  // Neutral indigo color
+        // SOLID ICU BAR: Current progress (not clickable - use panel buttons)
+        const icuRect = g
+          .append('rect')
+          .attr('x', xIcuIn)
+          .attr('y', VERTICAL_PADDING)
+          .attr('width', Math.max(xIcuEnd - xIcuIn, 2))
+          .attr('height', BAR_HEIGHT)
+          .attr('rx', 4)
+          .attr('fill', ICU_COLOR)
+          .attr('opacity', icuOpacity)
           .attr('stroke', '#fff')
           .attr('stroke-width', 2)
-          .style('cursor', 'pointer');
+          .style('cursor', 'default');  // Not clickable
 
-        // Add "L" label for all labs
-        g.append('text')
-          .attr('x', labX)
-          .attr('y', labY)
-          .attr('text-anchor', 'middle')
-          .attr('dominant-baseline', 'middle')
-          .attr('font-size', '10px')
-          .attr('font-weight', 'bold')
-          .attr('fill', '#fff')
-          .style('pointer-events', 'none')
-          .text('L');
-
-        // Hover events
-        circle.on('mouseenter', (event) => {
-          circle.attr('r', isMultiple ? 9 : 8);
+        // ICU hover events
+        icuRect.on('mouseenter', (event) => {
+          icuRect.attr('opacity', 1);
           setTooltip({
             x: event.pageX,
             y: event.pageY,
             content: {
-              type: 'lab-group',
-              data: labs,
-              count: labs.length
+              type: 'icu',
+              data: icuStay
             }
           });
         });
 
-        circle.on('mousemove', (event) => {
+        icuRect.on('mousemove', (event) => {
           setTooltip(prev => ({
             ...prev,
             x: event.pageX,
@@ -205,18 +186,87 @@ const TimelineRow = ({
           }));
         });
 
-        circle.on('mouseleave', () => {
-          circle.attr('r', isMultiple ? 7 : 6);
+        icuRect.on('mouseleave', () => {
+          icuRect.attr('opacity', icuOpacity);
           setTooltip(null);
         });
+      });
+    }
 
-        // Click event - show detail panel
-        circle.on('click', (event) => {
-          event.stopPropagation();
-          if (onLabClick) {
-            onLabClick(labs);
+    // Draw ALL lab markers independently (not tied to admission periods)
+    const labsByTime = new Map();
+    patient.labs.forEach((lab) => {
+      const labTime = new Date(lab.event_time);
+      const timeKey = labTime.getTime();
+      if (!labsByTime.has(timeKey)) {
+        labsByTime.set(timeKey, []);
+      }
+      labsByTime.get(timeKey).push(lab);
+    });
+
+    // Draw grouped lab markers
+    labsByTime.forEach((labs, timeKey) => {
+      const labTime = new Date(timeKey);
+      const labX = timeScale(labTime);
+      const labY = VERTICAL_PADDING + (BAR_HEIGHT / 2);  // Center in bar area
+
+      const isMultiple = labs.length > 1;
+
+      const circle = g
+        .append('circle')
+        .attr('cx', labX)
+        .attr('cy', labY)
+        .attr('r', isMultiple ? 7 : 6)
+        .attr('fill', '#6366f1')  // Neutral indigo color
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 2)
+        .style('cursor', 'pointer');
+
+      // Add "L" label
+      g.append('text')
+        .attr('x', labX)
+        .attr('y', labY)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .attr('font-size', '10px')
+        .attr('font-weight', 'bold')
+        .attr('fill', '#fff')
+        .style('pointer-events', 'none')
+        .text('L');
+
+      // Hover events
+      circle.on('mouseenter', (event) => {
+        circle.attr('r', isMultiple ? 9 : 8);
+        setTooltip({
+          x: event.pageX,
+          y: event.pageY,
+          content: {
+            type: 'lab-group',
+            data: labs,
+            count: labs.length
           }
         });
+      });
+
+      circle.on('mousemove', (event) => {
+        setTooltip(prev => ({
+          ...prev,
+          x: event.pageX,
+          y: event.pageY
+        }));
+      });
+
+      circle.on('mouseleave', () => {
+        circle.attr('r', isMultiple ? 7 : 6);
+        setTooltip(null);
+      });
+
+      // Click event - show detail panel
+      circle.on('click', (event) => {
+        event.stopPropagation();
+        if (onLabClick) {
+          onLabClick(labs);
+        }
       });
     });
 
@@ -229,8 +279,8 @@ const TimelineRow = ({
       g.append('line')
         .attr('x1', xCurrent)
         .attr('x2', xCurrent)
-        .attr('y1', 0)
-        .attr('y2', ROW_HEIGHT)
+        .attr('y1', VERTICAL_PADDING)
+        .attr('y2', VERTICAL_PADDING + BAR_HEIGHT)
         .attr('stroke', '#ef4444')  // Red
         .attr('stroke-width', 2)
         .attr('stroke-dasharray', '5,5')
@@ -239,7 +289,7 @@ const TimelineRow = ({
       // Small circle marker at center
       g.append('circle')
         .attr('cx', xCurrent)
-        .attr('cy', ROW_HEIGHT / 2)
+        .attr('cy', VERTICAL_PADDING + (BAR_HEIGHT / 2))
         .attr('r', 3)
         .attr('fill', '#ef4444');
     }
@@ -253,10 +303,10 @@ const TimelineRow = ({
     <>
       <div
         className={`timeline-row ${hasICU ? 'icu-patient' : ''}`}
-        onClick={hasICU && onToggleExpand ? onToggleExpand : undefined}
+        onClick={onRowClick}
         style={{
           height: ROW_HEIGHT,
-          cursor: hasICU ? 'pointer' : 'default'
+          cursor: 'pointer'
         }}
       >
         {/* Patient label on left */}
@@ -279,14 +329,6 @@ const TimelineRow = ({
           className="timeline-svg"
         ></svg>
       </div>
-
-      {/* Expandable Chartevent Panel */}
-      {isExpanded && hasICU && (
-        <CharteventPanel
-          chartevents={chartevents}
-          width={timelineWidth}
-        />
-      )}
 
       {/* Tooltip */}
       {tooltip && (
@@ -350,6 +392,28 @@ const TimelineRow = ({
                     Click to view details
                   </div>
                 </>
+              )}
+            </div>
+          )}
+
+          {tooltip.content.type === 'icu' && (
+            <div>
+              <div className="tooltip-title" style={{ color: '#f97316' }}>ICU Stay</div>
+              <div className="tooltip-item">
+                <strong>Unit:</strong> {tooltip.content.data.first_careunit || 'Unknown'}
+              </div>
+              <div className="tooltip-item">
+                <strong>In:</strong> {tooltip.content.data.intime}
+              </div>
+              {tooltip.content.data.outtime && (
+                <div className="tooltip-item">
+                  <strong>Out:</strong> {tooltip.content.data.outtime}
+                </div>
+              )}
+              {tooltip.content.data.los_days && (
+                <div className="tooltip-item">
+                  <strong>LOS:</strong> {tooltip.content.data.los_days.toFixed(1)} days
+                </div>
               )}
             </div>
           )}

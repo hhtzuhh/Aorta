@@ -8,7 +8,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
 import TimelineAxis from './TimelineAxis';
 import TimelineRow from './TimelineRow';
-import LabDetailPanel from './LabDetailPanel';
+import PatientDetailPanel from './PatientDetailPanel';
 import { useSimulationClock } from '../../contexts/ClockContext';
 import './Timeline.css';
 
@@ -16,8 +16,7 @@ const TimelineContainer = ({ patients }) => {
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [zoomDays, setZoomDays] = useState(5); // Default: 5-day view
-  const [selectedLabs, setSelectedLabs] = useState(null); // For lab detail panel
-  const [expandedPatient, setExpandedPatient] = useState(null); // For ICU chartevent panel
+  const [selectedPatient, setSelectedPatient] = useState(null); // For patient detail panel
   const { currentTime } = useSimulationClock();
 
   // Handle container resize
@@ -136,17 +135,12 @@ const TimelineContainer = ({ patients }) => {
             timeScale={timeScale}
             width={dimensions.width}
             index={index}
-            onLabClick={setSelectedLabs}
-            icuStays={patient.icuStays || []}
-            chartevents={patient.chartevents || {}}
-            isExpanded={expandedPatient === patient.patient.subject_id}
-            onToggleExpand={() => {
-              setExpandedPatient(
-                expandedPatient === patient.patient.subject_id
-                  ? null
-                  : patient.patient.subject_id
-              );
+            onRowClick={() => setSelectedPatient(patient)}
+            onLabClick={(labs) => {
+              // Open patient panel and select the lab
+              setSelectedPatient(patient);
             }}
+            icuStays={patient.icuStays || []}
           />
         ))}
       </div>
@@ -155,11 +149,13 @@ const TimelineContainer = ({ patients }) => {
       <TimelineAxis timeScale={timeScale} width={dimensions.width} />
     </div>
 
-    {/* Lab Detail Panel */}
-    {selectedLabs && (
-      <LabDetailPanel
-        labs={selectedLabs}
-        onClose={() => setSelectedLabs(null)}
+    {/* Patient Detail Panel (replaces old lab panel and ICU expansion) */}
+    {selectedPatient && (
+      <PatientDetailPanel
+        patient={selectedPatient}
+        icuStays={selectedPatient.icuStays || []}
+        chartevents={selectedPatient.chartevents || []}
+        onClose={() => setSelectedPatient(null)}
       />
     )}
     </>

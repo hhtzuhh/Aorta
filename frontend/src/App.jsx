@@ -6,7 +6,6 @@
 
 import { useMultiStreamSSE } from './hooks/useMultiStreamSSE';
 import { Header } from './components/Header';
-import { ConnectionStatus } from './components/ConnectionStatus';
 import TimelineContainer from './components/Timeline/TimelineContainer';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ClockProvider } from './contexts/ClockContext';
@@ -48,21 +47,10 @@ function App() {
   return (
     <ClockProvider>
       <div className="app">
-        <Header />
-
-      <div className="dashboard-controls">
-        <ConnectionStatus status={overallStatus} />
-        <div className="stream-status">
-          <span className={`status-dot ${connectionStatus.admissions}`}></span>
-          Admissions
-          <span className={`status-dot ${connectionStatus.labs}`} style={{ marginLeft: '16px' }}></span>
-          Labs
-          <span className={`status-dot ${connectionStatus.icu}`} style={{ marginLeft: '16px' }}></span>
-          ICU
-          <span className={`status-dot ${connectionStatus.vitals}`} style={{ marginLeft: '16px' }}></span>
-          Vitals
-        </div>
-      </div>
+        <Header
+          overallStatus={overallStatus}
+          connectionStatus={connectionStatus}
+        />
 
       <div className="stats-bar">
         <div className="stat-card">
@@ -99,7 +87,7 @@ function App() {
         {/* Timeline Legend */}
         <div className="timeline-legend">
           <div className="legend-section">
-            <span className="legend-title">Admission Types:</span>
+            <span className="legend-title">Care Levels:</span>
             <div className="legend-item">
               <div className="legend-color-box" style={{ background: '#dc2626' }}></div>
               Emergency/Urgent
@@ -111,6 +99,10 @@ function App() {
             <div className="legend-item">
               <div className="legend-color-box" style={{ background: '#8b5cf6' }}></div>
               Observation
+            </div>
+            <div className="legend-item">
+              <div className="legend-color-box" style={{ background: '#f97316', border: '2px solid #fff' }}></div>
+              ICU Stay
             </div>
           </div>
 
