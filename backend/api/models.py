@@ -193,3 +193,52 @@ class CharteventEvent(BaseModel):
     patient: PatientReference
     icu_stay: ICUStay
     chartevent: CharteventData
+
+
+class SepsisPrediction(BaseModel):
+    """Sepsis prediction details"""
+
+    sepsis_probability: float
+    risk_level: str  # LOW, MEDIUM, HIGH, CRITICAL
+    model_version: str
+    sofa_score: float
+
+
+class SepsisAlert(BaseModel):
+    """
+    Sepsis alert event from ML prediction service
+
+    Published to sepsis-alerts Kafka topic when prediction >= threshold
+    """
+
+    event_type: str
+    event_time: str
+    patient: PatientReference
+    admission: AdmissionReference
+    prediction: SepsisPrediction
+
+    @computed_field
+    @property
+    def is_critical(self) -> bool:
+        """
+        Determine if alert is critical (requires immediate attention)
+
+        Critical: probability >= 0.7 or risk_level == CRITICAL
+        """
+        return self.prediction.sepsis_probability >= 0.7 or self.prediction.risk_level == "CRITICAL"
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "event_type": "SEPSIS_ALERT",
+                "event_time": "2024-12-27T15:30:00Z",
+                "patient": {"subject_id": "10006701"},
+                "admission": {"hadm_id": "123456"},
+                "prediction": {
+                    "sepsis_probability": 0.72,
+                    "risk_level": "HIGH",
+                    "model_version": "v1",
+                    "sofa_score": 5.0,
+                },
+            }
+        }
