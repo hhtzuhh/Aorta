@@ -5,6 +5,12 @@ FastAPI application with Server-Sent Events (SSE) for real-time
 hospital admission monitoring.
 """
 
+import sys
+from pathlib import Path
+
+# Add parent directory to Python path so Aorta package can be imported
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 import asyncio
 import json
 import logging
@@ -93,10 +99,12 @@ async def root():
             "labs": "/api/labs",
             "icu_admissions": "/api/icu-admissions",
             "vitals": "/api/vitals",
+            "sepsis_alerts": "/api/sepsis-alerts",
             "stream_admissions": "/stream/admissions",
             "stream_labs": "/stream/labs",
             "stream_icu_admissions": "/stream/icu-admissions",
             "stream_vitals": "/stream/vitals",
+            "stream_sepsis_alerts": "/stream/sepsis-alerts",
         }
     }
 
@@ -111,10 +119,13 @@ async def health_check():
         "lab_sse_clients": len(unified_consumer.lab_sse_queues) if unified_consumer else 0,
         "icu_sse_clients": len(unified_consumer.icu_sse_queues) if unified_consumer else 0,
         "vitals_sse_clients": len(unified_consumer.vitals_sse_queues) if unified_consumer else 0,
+        "sepsis_sse_clients": len(unified_consumer.sepsis_sse_queues) if unified_consumer else 0,
         "recent_admissions": len(unified_consumer.recent_admissions) if unified_consumer else 0,
         "recent_labs": len(unified_consumer.recent_labs) if unified_consumer else 0,
         "recent_icu_admissions": len(unified_consumer.recent_icu_admissions) if unified_consumer else 0,
         "recent_chartevents": len(unified_consumer.recent_chartevents) if unified_consumer else 0,
+        "recent_sepsis_alerts": len(unified_consumer.recent_sepsis_alerts) if unified_consumer else 0,
+        "ml_module_stats": unified_consumer.ml_module.get_stats() if (unified_consumer and unified_consumer.ml_module) else {},
     }
 
 
@@ -278,6 +289,47 @@ async def stream_vitals(request: Request):
             logger.info("Vitals SSE stream cancelled")
         finally:
             unified_consumer.unsubscribe_vitals(queue)
+
+    return EventSourceResponse(event_generator())
+
+
+@app.get("/api/sepsis-alerts")
+async def get_recent_sepsis_alerts() -> List[dict]:
+    """Get recent sepsis prediction alerts"""
+    if not unified_consumer:
+        return []
+    return unified_consumer.get_recent_sepsis_alerts()
+
+
+@app.get("/stream/sepsis-alerts")
+async def stream_sepsis_alerts(request: Request):
+    """SSE endpoint for sepsis alert stream"""
+    if not unified_consumer:
+        return {"error": "Consumer not available"}
+
+    queue = unified_consumer.subscribe_sepsis_alerts()
+
+    async def event_generator():
+        try:
+            yield {
+                "event": "connected",
+                "data": json.dumps({"message": "Connected to sepsis alerts stream"})
+            }
+
+            while True:
+                if await request.is_disconnected():
+                    break
+
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    yield {"event": "sepsis-alert", "data": json.dumps(event)}
+                except asyncio.TimeoutError:
+                    yield {"comment": "keepalive"}
+
+        except asyncio.CancelledError:
+            logger.info("Sepsis alerts SSE stream cancelled")
+        finally:
+            unified_consumer.unsubscribe_sepsis_alerts(queue)
 
     return EventSourceResponse(event_generator())
 

@@ -139,7 +139,7 @@ class LabEvent(BaseModel):
         """
         Determine if lab result is abnormal based on flag field
         """
-        return self.lab.flag and self.lab.flag.upper() == "ABNORMAL"
+        return bool(self.lab.flag and self.lab.flag.upper() == "ABNORMAL")
 
 
 class ICUStay(BaseModel):
@@ -191,6 +191,7 @@ class CharteventEvent(BaseModel):
     event_type: str
     event_time: str
     patient: PatientReference
+    admission: Optional[AdmissionReference] = None  # Added to match producer output
     icu_stay: ICUStay
     chartevent: CharteventData
 
