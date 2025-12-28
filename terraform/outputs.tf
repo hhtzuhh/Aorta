@@ -108,6 +108,7 @@ output "topics" {
     labs           = confluent_kafka_topic.labs.topic_name
     vitals         = confluent_kafka_topic.vitals.topic_name
     icu_admissions = confluent_kafka_topic.icu_admissions.topic_name
+    sepsis_alerts  = confluent_kafka_topic.sepsis_alerts.topic_name
   }
 }
 
@@ -146,6 +147,7 @@ output "summary" {
       - ${confluent_kafka_topic.labs.topic_name}
       - ${confluent_kafka_topic.vitals.topic_name}
       - ${confluent_kafka_topic.icu_admissions.topic_name}
+      - ${confluent_kafka_topic.sepsis_alerts.topic_name}
 
     Flink Pool: ${confluent_flink_compute_pool.aorta_flink_pool.display_name}
 

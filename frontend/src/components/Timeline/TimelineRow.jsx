@@ -15,6 +15,7 @@ const TimelineRow = ({
   index,
   onRowClick,
   onLabClick,
+  onSepsisAlertClick,
   icuStays = []
 }) => {
   const svgRef = useRef(null);
@@ -23,7 +24,7 @@ const TimelineRow = ({
 
   const ROW_HEIGHT = 70;        // Increased for padding
   const BAR_HEIGHT = 28;        // Slightly smaller bar
-  const VERTICAL_PADDING = 10;  // Padding top/bottom
+  const VERTICAL_PADDING = (ROW_HEIGHT - BAR_HEIGHT) / 2;  // Center the bar vertically
 
   // Check if patient has ICU stay
   const hasICU = icuStays && icuStays.length > 0;
@@ -218,8 +219,6 @@ const TimelineRow = ({
         .attr('cy', labY)
         .attr('r', isMultiple ? 7 : 6)
         .attr('fill', '#6366f1')  // Neutral indigo color
-        .attr('stroke', '#fff')
-        .attr('stroke-width', 2)
         .style('cursor', 'pointer');
 
       // Add "L" label
@@ -270,6 +269,82 @@ const TimelineRow = ({
       });
     });
 
+    // Draw sepsis alert markers
+    if (patient.sepsisAlerts && patient.sepsisAlerts.length > 0) {
+      console.log(`Drawing ${patient.sepsisAlerts.length} sepsis alerts for patient ${patient.patient.subject_id}`, patient.sepsisAlerts);
+      patient.sepsisAlerts.forEach((alert) => {
+        const alertTime = new Date(alert.event_time);
+        const alertX = timeScale(alertTime);
+        const alertY = VERTICAL_PADDING + 2;  // Just above the bar with padding
+
+        console.log(`  Alert at x=${alertX}, y=${alertY}, time=${alert.event_time}`);
+
+        // Determine color based on risk level
+        const riskLevel = alert.prediction?.risk_level || 'LOW';
+        const riskColors = {
+          'CRITICAL': '#dc2626',  // Red
+          'HIGH': '#f97316',      // Orange
+          'MEDIUM': '#eab308',    // Yellow
+          'LOW': '#84cc16'        // Lime
+        };
+        const alertColor = riskColors[riskLevel] || '#84cc16';
+
+        const circle = g
+          .append('circle')
+          .attr('cx', alertX)
+          .attr('cy', alertY)
+          .attr('r', 6)  // Same size as labs
+          .attr('fill', alertColor)
+          .style('cursor', 'pointer');
+
+        // Add "S" label
+        g.append('text')
+          .attr('x', alertX)
+          .attr('y', alertY)
+          .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'middle')
+          .attr('font-size', '10px')  // Same as labs
+          .attr('font-weight', 'bold')
+          .attr('fill', 'white')
+          .style('pointer-events', 'none')
+          .text('S');
+
+        // Hover events
+        circle.on('mouseenter', (event) => {
+          circle.attr('r', 8);  // Grow on hover (same as labs)
+          setTooltip({
+            x: event.pageX,
+            y: event.pageY,
+            content: {
+              type: 'sepsis-alert',
+              data: alert
+            }
+          });
+        });
+
+        circle.on('mousemove', (event) => {
+          setTooltip(prev => ({
+            ...prev,
+            x: event.pageX,
+            y: event.pageY
+          }));
+        });
+
+        circle.on('mouseleave', () => {
+          circle.attr('r', 6);  // Back to normal size
+          setTooltip(null);
+        });
+
+        // Click event - show detail panel
+        circle.on('click', (event) => {
+          event.stopPropagation();
+          if (onSepsisAlertClick) {
+            onSepsisAlertClick(alert);
+          }
+        });
+      });
+    }
+
     // Draw current time indicator (vertical line)
     if (currentTime) {
       const currentSimTime = new Date(currentTime);
@@ -294,7 +369,7 @@ const TimelineRow = ({
         .attr('fill', '#ef4444');
     }
 
-  }, [patient, timeScale, currentTime]);  // Add currentTime to trigger re-renders
+  }, [patient, timeScale, currentTime, patient.sepsisAlerts?.length]);  // Re-render when sepsis alerts added
 
   // Get timeline width from scale range
   const timelineWidth = timeScale ? timeScale.range()[1] : width;
@@ -415,6 +490,30 @@ const TimelineRow = ({
                   <strong>LOS:</strong> {tooltip.content.data.los_days.toFixed(1)} days
                 </div>
               )}
+            </div>
+          )}
+
+          {tooltip.content.type === 'sepsis-alert' && (
+            <div>
+              <div className="tooltip-title" style={{
+                color: tooltip.content.data.prediction?.risk_level === 'CRITICAL' ? '#dc2626' :
+                       tooltip.content.data.prediction?.risk_level === 'HIGH' ? '#f97316' :
+                       tooltip.content.data.prediction?.risk_level === 'MEDIUM' ? '#eab308' : '#84cc16'
+              }}>
+                Sepsis Alert - {tooltip.content.data.prediction?.risk_level || 'UNKNOWN'}
+              </div>
+              <div className="tooltip-item">
+                <strong>Risk:</strong> {((tooltip.content.data.prediction?.sepsis_probability || 0) * 100).toFixed(1)}%
+              </div>
+              <div className="tooltip-item">
+                <strong>SOFA Score:</strong> {tooltip.content.data.prediction?.sofa_score || 'N/A'}
+              </div>
+              <div className="tooltip-item">
+                <strong>Time:</strong> {tooltip.content.data.event_time}
+              </div>
+              <div className="tooltip-item" style={{ fontStyle: 'italic', fontSize: '11px', marginTop: '4px' }}>
+                Click to view details
+              </div>
             </div>
           )}
         </div>

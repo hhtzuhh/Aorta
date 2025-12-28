@@ -195,7 +195,7 @@ class MLPredictionModule:
                     event_time=event_data.get("event_time"),
                     tick_duration_minutes=self.tick_duration_minutes,
                 ):
-                    await self._predict_and_publish(hadm_id)
+                    await self._predict_and_publish(hadm_id, event_data.get("event_time"))
 
         except Exception as e:
             logger.error(f"Error handling vitals event: {e}", exc_info=True)
@@ -248,7 +248,7 @@ class MLPredictionModule:
                     tick_duration_minutes=self.tick_duration_minutes,
                     is_critical_event=is_critical,
                 ):
-                    await self._predict_and_publish(hadm_id)
+                    await self._predict_and_publish(hadm_id, event_data.get("event_time"))
 
         except Exception as e:
             logger.error(f"Error handling lab event: {e}", exc_info=True)
@@ -272,19 +272,20 @@ class MLPredictionModule:
                     tick_duration_minutes=self.tick_duration_minutes,
                     is_critical_event=True,
                 ):
-                    await self._predict_and_publish(hadm_id)
+                    await self._predict_and_publish(hadm_id, event_data.get("event_time"))
 
         except Exception as e:
             logger.error(f"Error handling ICU event: {e}", exc_info=True)
 
     # ==================== Prediction Logic ====================
 
-    async def _predict_and_publish(self, hadm_id: str):
+    async def _predict_and_publish(self, hadm_id: str, event_time: str):
         """
         Make prediction and publish alert if above threshold
 
         Args:
             hadm_id: Hospital admission ID
+            event_time: Simulation time of the triggering event (ISO format)
         """
         try:
             state = self.state_manager.states.get(hadm_id)
@@ -367,7 +368,7 @@ class MLPredictionModule:
             if probability >= self.alert_threshold:
                 alert = SepsisAlert(
                     event_type="SEPSIS_ALERT",
-                    event_time=datetime.now().isoformat(),
+                    event_time=event_time,  # Use simulation time, not real time
                     patient=PatientReference(subject_id=state.subject_id),
                     admission=AdmissionReference(hadm_id=hadm_id),
                     prediction=SepsisPrediction(

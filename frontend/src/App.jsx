@@ -19,6 +19,7 @@ function App() {
     `${API_URL}/stream/labs`,
     `${API_URL}/stream/icu-admissions`,
     `${API_URL}/stream/vitals`,
+    `${API_URL}/stream/sepsis-alerts`,
     20 // Max patients
   );
 
@@ -32,16 +33,25 @@ function App() {
     ).length,
     0
   );
+  const totalSepsisAlerts = patients.reduce((sum, p) => sum + (p.sepsisAlerts?.length || 0), 0);
+  const criticalSepsisAlerts = patients.reduce(
+    (sum, p) => sum + (p.sepsisAlerts?.filter(alert =>
+      alert.prediction?.risk_level === 'CRITICAL' || alert.prediction?.risk_level === 'HIGH'
+    ).length || 0),
+    0
+  );
 
   // Overall connection status
   const allConnected = connectionStatus.admissions === 'connected' &&
                        connectionStatus.labs === 'connected' &&
                        connectionStatus.icu === 'connected' &&
-                       connectionStatus.vitals === 'connected';
+                       connectionStatus.vitals === 'connected' &&
+                       connectionStatus.sepsisAlerts === 'connected';
   const anyConnecting = connectionStatus.admissions === 'connecting' ||
                         connectionStatus.labs === 'connecting' ||
                         connectionStatus.icu === 'connecting' ||
-                        connectionStatus.vitals === 'connecting';
+                        connectionStatus.vitals === 'connecting' ||
+                        connectionStatus.sepsisAlerts === 'connecting';
   const overallStatus = allConnected ? 'connected' : (anyConnecting ? 'connecting' : 'disconnected');
 
   return (
@@ -77,6 +87,13 @@ function App() {
           <div className="stat-label">Abnormal Labs</div>
           <strong>{abnormalLabs}</strong>
         </div>
+
+        <div className="stat-card highlight" style={{ background: criticalSepsisAlerts > 0 ? '#fee2e2' : undefined }}>
+          <div className="stat-label">Sepsis Alerts</div>
+          <strong style={{ color: criticalSepsisAlerts > 0 ? '#dc2626' : undefined }}>
+            {totalSepsisAlerts} {criticalSepsisAlerts > 0 && `(${criticalSepsisAlerts} critical)`}
+          </strong>
+        </div>
       </div>
 
       <main className="dashboard-main">
@@ -107,7 +124,7 @@ function App() {
           </div>
 
           <div className="legend-section">
-            <span className="legend-title">Lab Results:</span>
+            <span className="legend-title">Events:</span>
             <div className="legend-item">
               <div className="legend-color-circle" style={{
                 background: '#6366f1',
@@ -120,7 +137,67 @@ function App() {
                 width: '20px',
                 height: '20px'
               }}>L</div>
-              Click lab dots to view details
+              Lab Results
+            </div>
+          </div>
+
+          <div className="legend-section">
+            <span className="legend-title">Sepsis Risk:</span>
+            <div className="legend-item">
+              <div className="legend-color-circle" style={{
+                background: '#dc2626',
+                color: 'white',
+                fontSize: '10px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '20px',
+                height: '20px'
+              }}>S</div>
+              Critical (&gt;70%)
+            </div>
+            <div className="legend-item">
+              <div className="legend-color-circle" style={{
+                background: '#f97316',
+                color: 'white',
+                fontSize: '10px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '20px',
+                height: '20px'
+              }}>S</div>
+              High (50-70%)
+            </div>
+            <div className="legend-item">
+              <div className="legend-color-circle" style={{
+                background: '#eab308',
+                color: 'white',
+                fontSize: '10px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '20px',
+                height: '20px'
+              }}>S</div>
+              Medium (30-50%)
+            </div>
+            <div className="legend-item">
+              <div className="legend-color-circle" style={{
+                background: '#84cc16',
+                color: 'white',
+                fontSize: '10px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '20px',
+                height: '20px'
+              }}>S</div>
+              Low (&lt;30%)
             </div>
           </div>
         </div>

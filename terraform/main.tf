@@ -282,6 +282,27 @@ resource "confluent_kafka_topic" "icu_admissions" {
   }
 }
 
+# Topic: sepsis-alerts (ML prediction alerts)
+resource "confluent_kafka_topic" "sepsis_alerts" {
+  kafka_cluster {
+    id = confluent_kafka_cluster.aorta_cluster.id
+  }
+
+  topic_name         = "sepsis-alerts"
+  partitions_count   = 3
+  rest_endpoint      = confluent_kafka_cluster.aorta_cluster.rest_endpoint
+
+  config = {
+    "retention.ms"         = "604800000"  # 7 days
+    "cleanup.policy"       = "delete"
+  }
+
+  credentials {
+    key    = confluent_api_key.aorta_kafka_key.id
+    secret = confluent_api_key.aorta_kafka_key.secret
+  }
+}
+
 # ============================================================
 # ACLs (Access Control Lists)
 # ============================================================

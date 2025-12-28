@@ -39,6 +39,8 @@ export const Header = ({ overallStatus, connectionStatus }) => {
               ICU
               <span className={`status-dot ${connectionStatus.vitals}`} style={{ marginLeft: '16px' }}></span>
               Vitals
+              <span className={`status-dot ${connectionStatus.sepsisAlerts}`} style={{ marginLeft: '16px' }}></span>
+              Sepsis
             </div>
           </div>
         </div>

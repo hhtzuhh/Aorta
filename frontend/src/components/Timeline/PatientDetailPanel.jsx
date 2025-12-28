@@ -122,7 +122,21 @@ const PatientDetailPanel = ({ patient, icuStays = [], onClose, chartevents = [] 
         )}
       </div>
 
-      {/* Row 2: ICU Stays */}
+      {/* Row 2: Sepsis Alerts */}
+      <div className="panel-section">
+        <h3>🚨 Sepsis Risk Over Time ({patient.sepsisAlerts?.length || 0} alerts)</h3>
+
+        {!patient.sepsisAlerts || patient.sepsisAlerts.length === 0 ? (
+          <div className="empty-state-small">No sepsis alerts</div>
+        ) : (
+          <SepsisRiskChart
+            alerts={patient.sepsisAlerts}
+            formatFullDateTime={formatFullDateTime}
+          />
+        )}
+      </div>
+
+      {/* Row 3: ICU Stays */}
       <div className="panel-section">
         <h3>ICU Stays ({icuStays.length})</h3>
 
@@ -540,6 +554,180 @@ const VitalRow = ({ vitalType, data, stay, color, formatFullDateTime }) => {
               <span className="vital-text-badge-time">{formatFullDateTime(item.timeStr)}</span>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Sepsis Risk Chart - shows probability over time
+const SepsisRiskChart = ({ alerts, formatFullDateTime }) => {
+  const chartRef = useRef(null);
+  const [selectedPoint, setSelectedPoint] = useState(null);
+
+  useEffect(() => {
+    if (!chartRef.current || alerts.length === 0) return;
+
+    // Clear previous chart
+    d3.select(chartRef.current).selectAll('*').remove();
+
+    // Prepare data
+    const data = alerts
+      .map(alert => ({
+        time: new Date(alert.event_time),
+        timeStr: alert.event_time,
+        probability: (alert.prediction?.sepsis_probability || 0) * 100,
+        riskLevel: alert.prediction?.risk_level || 'UNKNOWN',
+        sofa: alert.prediction?.sofa_score || 0
+      }))
+      .sort((a, b) => a.time - b.time);
+
+    // Chart dimensions
+    const margin = { top: 20, right: 20, bottom: 40, left: 50 };
+    const width = chartRef.current.clientWidth - margin.left - margin.right;
+    const height = 150 - margin.top - margin.bottom;
+
+    const svg = d3.select(chartRef.current)
+      .append('svg')
+      .attr('width', width + margin.left + margin.right)
+      .attr('height', height + margin.top + margin.bottom)
+      .append('g')
+      .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    // Scales
+    const xScale = d3.scaleTime()
+      .domain(d3.extent(data, d => d.time))
+      .range([0, width]);
+
+    const yScale = d3.scaleLinear()
+      .domain([0, 100])
+      .range([height, 0]);
+
+    // Grid lines
+    svg.append('g')
+      .attr('class', 'grid')
+      .attr('opacity', 0.1)
+      .call(d3.axisLeft(yScale).tickSize(-width).tickFormat(''));
+
+    // Line
+    const line = d3.line()
+      .x(d => xScale(d.time))
+      .y(d => yScale(d.probability));
+
+    svg.append('path')
+      .datum(data)
+      .attr('fill', 'none')
+      .attr('stroke', '#000')
+      .attr('stroke-width', 1.5)
+      .attr('d', line);
+
+    // Axes
+    svg.append('g')
+      .attr('transform', `translate(0,${height})`)
+      .call(d3.axisBottom(xScale).ticks(5).tickFormat(d3.timeFormat('%m/%d %H:%M')))
+      .style('font-size', '10px')
+      .style('color', '#000');
+
+    svg.append('g')
+      .call(d3.axisLeft(yScale).ticks(5))
+      .style('font-size', '10px')
+      .style('color', '#000');
+
+    // Y-axis label
+    svg.append('text')
+      .attr('transform', 'rotate(-90)')
+      .attr('y', 0 - margin.left)
+      .attr('x', 0 - (height / 2))
+      .attr('dy', '1em')
+      .style('text-anchor', 'middle')
+      .style('font-size', '11px')
+      .style('fill', '#000')
+      .text('Sepsis Risk (%)');
+
+    // Tooltip
+    const tooltip = d3.select('body')
+      .append('div')
+      .style('position', 'absolute')
+      .style('visibility', 'hidden')
+      .style('background', 'rgba(0, 0, 0, 0.8)')
+      .style('color', 'white')
+      .style('padding', '8px 12px')
+      .style('border-radius', '4px')
+      .style('font-size', '12px')
+      .style('pointer-events', 'none')
+      .style('z-index', '1000');
+
+    // Data points
+    const riskColors = {
+      'CRITICAL': '#dc2626',
+      'HIGH': '#f97316',
+      'MEDIUM': '#eab308',
+      'LOW': '#84cc16'
+    };
+
+    svg.selectAll('.dot')
+      .data(data)
+      .enter()
+      .append('circle')
+      .attr('class', 'dot')
+      .attr('cx', d => xScale(d.time))
+      .attr('cy', d => yScale(d.probability))
+      .attr('r', 5)
+      .attr('fill', d => riskColors[d.riskLevel] || '#6b7280')
+      .attr('stroke', 'white')
+      .attr('stroke-width', 2)
+      .style('cursor', 'pointer')
+      .on('mouseover', function(event, d) {
+        d3.select(this).attr('r', 7);
+        tooltip
+          .style('visibility', 'visible')
+          .html(`
+            <div><strong>${d.riskLevel} RISK</strong></div>
+            <div style="font-size: 16px; margin: 4px 0;"><strong>${d.probability.toFixed(1)}%</strong></div>
+            <div>SOFA: ${d.sofa}</div>
+            <div style="font-size: 10px; margin-top: 4px; opacity: 0.8;">${formatFullDateTime(d.timeStr)}</div>
+          `);
+      })
+      .on('mousemove', function(event) {
+        tooltip
+          .style('top', (event.pageY - 70) + 'px')
+          .style('left', (event.pageX + 10) + 'px');
+      })
+      .on('mouseout', function() {
+        d3.select(this).attr('r', 5);
+        tooltip.style('visibility', 'hidden');
+      })
+      .on('click', function(event, d) {
+        setSelectedPoint(d);
+      });
+
+    return () => {
+      tooltip.remove();
+    };
+  }, [alerts, formatFullDateTime]);
+
+  return (
+    <div style={{ marginTop: '10px' }}>
+      <div ref={chartRef} style={{ width: '100%', minHeight: '150px' }}></div>
+      {selectedPoint && (
+        <div style={{
+          marginTop: '10px',
+          padding: '12px',
+          background: '#f9fafb',
+          borderRadius: '4px',
+          borderLeft: `4px solid ${
+            selectedPoint.riskLevel === 'CRITICAL' ? '#dc2626' :
+            selectedPoint.riskLevel === 'HIGH' ? '#f97316' :
+            selectedPoint.riskLevel === 'MEDIUM' ? '#eab308' : '#84cc16'
+          }`
+        }}>
+          <div style={{ fontWeight: '600', marginBottom: '4px', color: '#000' }}>
+            {selectedPoint.riskLevel} RISK at {formatFullDateTime(selectedPoint.timeStr)}
+          </div>
+          <div style={{ display: 'flex', gap: '20px', fontSize: '13px', color: '#000' }}>
+            <div><strong>Probability:</strong> {selectedPoint.probability.toFixed(1)}%</div>
+            <div><strong>SOFA Score:</strong> {selectedPoint.sofa}</div>
+          </div>
         </div>
       )}
     </div>

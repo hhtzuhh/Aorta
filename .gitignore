@@ -27,6 +27,8 @@ __pycache__/
 .venv/
 venv/
 env/
+*.egg-info/
+src/
 
 # IDE
 .vscode/

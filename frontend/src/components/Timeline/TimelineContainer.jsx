@@ -140,6 +140,10 @@ const TimelineContainer = ({ patients }) => {
               // Open patient panel and select the lab
               setSelectedPatient(patient);
             }}
+            onSepsisAlertClick={(alert) => {
+              // Open patient panel when sepsis alert is clicked
+              setSelectedPatient(patient);
+            }}
             icuStays={patient.icuStays || []}
           />
         ))}

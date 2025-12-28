@@ -7,21 +7,23 @@
 
 import { useState, useEffect, useRef } from 'react';
 
-export const useMultiStreamSSE = (admissionsUrl, labsUrl, icuUrl, vitalsUrl, maxPatients = 20) => {
+export const useMultiStreamSSE = (admissionsUrl, labsUrl, icuUrl, vitalsUrl, sepsisAlertsUrl, maxPatients = 20) => {
   const [patients, setPatients] = useState(new Map());
   const [connectionStatus, setConnectionStatus] = useState({
     admissions: 'connecting',
     labs: 'connecting',
     icu: 'connecting',
-    vitals: 'connecting'
+    vitals: 'connecting',
+    sepsisAlerts: 'connecting'
   });
 
   const admissionSourceRef = useRef(null);
   const labSourceRef = useRef(null);
   const icuSourceRef = useRef(null);
   const vitalsSourceRef = useRef(null);
-  const reconnectTimeoutsRef = useRef({ admissions: null, labs: null, icu: null, vitals: null });
-  const reconnectAttemptsRef = useRef({ admissions: 0, labs: 0, icu: 0, vitals: 0 });
+  const sepsisAlertsSourceRef = useRef(null);
+  const reconnectTimeoutsRef = useRef({ admissions: null, labs: null, icu: null, vitals: null, sepsisAlerts: null });
+  const reconnectAttemptsRef = useRef({ admissions: 0, labs: 0, icu: 0, vitals: 0, sepsisAlerts: 0 });
 
   useEffect(() => {
     // Connect to admissions stream
@@ -63,6 +65,7 @@ export const useMultiStreamSSE = (admissionsUrl, labsUrl, icuUrl, vitalsUrl, max
                 labs: [],
                 icuStays: [],
                 chartevents: {},
+                sepsisAlerts: [],
                 firstSeen: new Date(admission.event_time)
               };
 
@@ -149,6 +152,7 @@ export const useMultiStreamSSE = (admissionsUrl, labsUrl, icuUrl, vitalsUrl, max
                 labs: [lab],
                 icuStays: [],
                 chartevents: {},
+                sepsisAlerts: [],
                 firstSeen: new Date(lab.event_time)
               };
 
@@ -256,6 +260,7 @@ export const useMultiStreamSSE = (admissionsUrl, labsUrl, icuUrl, vitalsUrl, max
                   status: icuAdmission.icu_stay.status
                 }],
                 chartevents: {},
+                sepsisAlerts: [],
                 firstSeen: new Date(icuAdmission.event_time)
               };
 
@@ -378,6 +383,7 @@ export const useMultiStreamSSE = (admissionsUrl, labsUrl, icuUrl, vitalsUrl, max
                     }]
                   }
                 },
+                sepsisAlerts: [],
                 firstSeen: new Date(charteventData.event_time)
               };
 
@@ -424,11 +430,98 @@ export const useMultiStreamSSE = (admissionsUrl, labsUrl, icuUrl, vitalsUrl, max
       };
     };
 
+    // Connect to sepsis alerts stream
+    const connectSepsisAlerts = () => {
+      console.log(`Connecting to sepsis alerts stream: ${sepsisAlertsUrl}`);
+      setConnectionStatus(prev => ({ ...prev, sepsisAlerts: 'connecting' }));
+
+      const eventSource = new EventSource(sepsisAlertsUrl);
+      sepsisAlertsSourceRef.current = eventSource;
+
+      eventSource.addEventListener('connected', (event) => {
+        console.log('Sepsis alerts stream connected:', event.data);
+        setConnectionStatus(prev => ({ ...prev, sepsisAlerts: 'connected' }));
+        reconnectAttemptsRef.current.sepsisAlerts = 0;
+      });
+
+      eventSource.addEventListener('sepsis-alert', (event) => {
+        try {
+          const alert = JSON.parse(event.data);
+
+          setPatients((prevPatients) => {
+            const newPatients = new Map(prevPatients);
+            const patientId = alert.patient.subject_id;
+
+            if (newPatients.has(patientId)) {
+              // Add sepsis alert to existing patient
+              const patientData = newPatients.get(patientId);
+              newPatients.set(patientId, {
+                ...patientData,
+                sepsisAlerts: [...patientData.sepsisAlerts, alert].sort(
+                  (a, b) => new Date(a.event_time) - new Date(b.event_time)
+                )
+              });
+            } else {
+              // Create new patient entry for sepsis alert
+              const newEntry = {
+                patient: alert.patient,
+                admissions: [],
+                labs: [],
+                icuStays: [],
+                chartevents: {},
+                sepsisAlerts: [alert],
+                firstSeen: new Date(alert.event_time)
+              };
+
+              // FIFO eviction if exceeding max patients
+              if (newPatients.size >= maxPatients) {
+                let oldestKey = null;
+                let oldestTime = new Date();
+
+                for (const [key, value] of newPatients.entries()) {
+                  if (value.firstSeen < oldestTime) {
+                    oldestTime = value.firstSeen;
+                    oldestKey = key;
+                  }
+                }
+
+                if (oldestKey) {
+                  newPatients.delete(oldestKey);
+                }
+              }
+
+              newPatients.set(patientId, newEntry);
+            }
+
+            return newPatients;
+          });
+        } catch (err) {
+          console.error('Failed to parse sepsis alert event:', err);
+        }
+      });
+
+      eventSource.onerror = (err) => {
+        console.error('Sepsis alerts stream error:', err);
+        setConnectionStatus(prev => ({ ...prev, sepsisAlerts: 'disconnected' }));
+        eventSource.close();
+
+        const delay = Math.min(
+          1000 * Math.pow(2, reconnectAttemptsRef.current.sepsisAlerts),
+          30000
+        );
+        reconnectAttemptsRef.current.sepsisAlerts += 1;
+
+        console.log(`Reconnecting to sepsis alerts in ${delay}ms...`);
+        reconnectTimeoutsRef.current.sepsisAlerts = setTimeout(connectSepsisAlerts, delay);
+      };
+    };
+
     // Initial connections
     connectAdmissions();
     connectLabs();
     connectICU();
     connectVitals();
+    connectSepsisAlerts();
 
     // Cleanup on unmount
     return () => {
@@ -444,6 +537,9 @@ export const useMultiStreamSSE = (admissionsUrl, labsUrl, icuUrl, vitalsUrl, max
       if (vitalsSourceRef.current) {
         vitalsSourceRef.current.close();
       }
+      if (sepsisAlertsSourceRef.current) {
+        sepsisAlertsSourceRef.current.close();
+      }
       if (reconnectTimeoutsRef.current.admissions) {
         clearTimeout(reconnectTimeoutsRef.current.admissions);
       }
@@ -456,8 +552,11 @@ export const useMultiStreamSSE = (admissionsUrl, labsUrl, icuUrl, vitalsUrl, max
       if (reconnectTimeoutsRef.current.vitals) {
         clearTimeout(reconnectTimeoutsRef.current.vitals);
       }
+      if (reconnectTimeoutsRef.current.sepsisAlerts) {
+        clearTimeout(reconnectTimeoutsRef.current.sepsisAlerts);
+      }
     };
-  }, [admissionsUrl, labsUrl, icuUrl, vitalsUrl, maxPatients]);
+  }, [admissionsUrl, labsUrl, icuUrl, vitalsUrl, sepsisAlertsUrl, maxPatients]);
 
   // Convert Map to Array for rendering
   const patientArray = Array.from(patients.values()).sort(
