@@ -303,6 +303,27 @@ resource "confluent_kafka_topic" "sepsis_alerts" {
   }
 }
 
+# Topic: clinical-recommendations (RAG-generated treatment recommendations)
+resource "confluent_kafka_topic" "clinical_recommendations" {
+  kafka_cluster {
+    id = confluent_kafka_cluster.aorta_cluster.id
+  }
+
+  topic_name         = "clinical-recommendations"
+  partitions_count   = 3
+  rest_endpoint      = confluent_kafka_cluster.aorta_cluster.rest_endpoint
+
+  config = {
+    "retention.ms"         = "604800000"  # 7 days
+    "cleanup.policy"       = "delete"
+  }
+
+  credentials {
+    key    = confluent_api_key.aorta_kafka_key.id
+    secret = confluent_api_key.aorta_kafka_key.secret
+  }
+}
+
 # ============================================================
 # ACLs (Access Control Lists)
 # ============================================================

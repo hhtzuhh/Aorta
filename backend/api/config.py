@@ -28,6 +28,16 @@ class Settings(BaseSettings):
     cors_origins: List[str] = ["http://localhost:5173"]
     max_recent_admissions: int = 50
 
+    # RAG Configuration (MongoDB Atlas + Gemini)
+    mongodb_connection_string: str = ""
+    mongodb_username: str = ""
+    mongodb_password: str = ""
+    mongodb_database: str = "sepsis_guidelines"
+    mongodb_collection: str = "guideline_chunks"
+    gemini_api_key: str = ""
+    rag_enabled: bool = True
+    rag_probability_threshold: float = 0.5
+
     # Environment
     environment: str = "development"
 
@@ -65,6 +75,31 @@ class Settings(BaseSettings):
         with open(config_file) as f:
             kafka_config = json.load(f)
 
+        # Try to load RAG config (optional)
+        rag_config_path = "_data/rag_config.json"
+        rag_possible_paths = [
+            Path(rag_config_path),
+            Path("..") / rag_config_path,
+            Path(__file__).parent.parent.parent / rag_config_path,
+        ]
+
+        rag_settings = {}
+        for path in rag_possible_paths:
+            if path.exists():
+                with open(path) as f:
+                    rag_config = json.load(f)
+                    rag_settings = {
+                        "mongodb_connection_string": rag_config.get("mongodb_connection_string", ""),
+                        "mongodb_username": rag_config.get("mongodb_username", ""),
+                        "mongodb_password": rag_config.get("mongodb_password", ""),
+                        "mongodb_database": rag_config.get("mongodb_database", "sepsis_guidelines"),
+                        "mongodb_collection": rag_config.get("mongodb_collection", "guideline_chunks"),
+                        "gemini_api_key": rag_config.get("gemini_api_key", ""),
+                        "rag_enabled": rag_config.get("rag_enabled", True),
+                        "rag_probability_threshold": rag_config.get("rag_probability_threshold", 0.5),
+                    }
+                break
+
         # Map JSON config to Settings
         return cls(
             kafka_bootstrap_servers=kafka_config.get("bootstrap_servers", ""),
@@ -72,6 +107,7 @@ class Settings(BaseSettings):
             kafka_sasl_password=kafka_config.get("sasl_password", ""),
             kafka_sasl_mechanism=kafka_config.get("sasl_mechanism", "PLAIN"),
             kafka_security_protocol=kafka_config.get("security_protocol", "SASL_SSL"),
+            **rag_settings,
         )
 
 

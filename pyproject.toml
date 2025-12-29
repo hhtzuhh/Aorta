@@ -36,6 +36,11 @@ dependencies = [
     "seaborn>=0.13.0",
     "google-cloud-bigquery>=3.14.0",
     "pyarrow>=14.0.0",
+
+    # RAG dependencies (MongoDB + Gemini)
+    "google-genai>=0.2.0",  # Modern Gemini SDK (embeddings + generation)
+    "pymongo>=4.6.0",        # MongoDB Atlas client
+    "pdfplumber>=0.11.0",    # PDF text extraction
 ]
 
 [tool.setuptools.packages.find]
