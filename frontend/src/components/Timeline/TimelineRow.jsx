@@ -277,7 +277,6 @@ const TimelineRow = ({
         const alertX = timeScale(alertTime);
         const alertY = VERTICAL_PADDING + 2;  // Just above the bar with padding
 
-        console.log(`  Alert at x=${alertX}, y=${alertY}, time=${alert.event_time}`);
 
         // Determine color based on risk level
         const riskLevel = alert.prediction?.risk_level || 'LOW';
