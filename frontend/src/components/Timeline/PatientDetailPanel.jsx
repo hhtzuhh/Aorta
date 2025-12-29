@@ -10,8 +10,10 @@
 import { useState, useRef, useEffect } from 'react';
 import * as d3 from 'd3';
 import './PatientDetailPanel.css';
+import { useRecommendations } from '../../hooks/useRecommendations';
 
 const PatientDetailPanel = ({ patient, icuStays = [], onClose, chartevents = [] }) => {
+  const { recommendations, getRecommendationForAlert } = useRecommendations();
   const [selectedIcuIndex, setSelectedIcuIndex] = useState(null);
   const [currentBatchIndex, setCurrentBatchIndex] = useState(0);
   const [labsCollapsed, setLabsCollapsed] = useState(false);
@@ -132,6 +134,8 @@ const PatientDetailPanel = ({ patient, icuStays = [], onClose, chartevents = [] 
           <SepsisRiskChart
             alerts={patient.sepsisAlerts}
             formatFullDateTime={formatFullDateTime}
+            subjectId={patient.patient.subject_id}
+            getRecommendationForAlert={getRecommendationForAlert}
           />
         )}
       </div>
@@ -560,10 +564,11 @@ const VitalRow = ({ vitalType, data, stay, color, formatFullDateTime }) => {
   );
 };
 
-// Sepsis Risk Chart - shows probability over time
-const SepsisRiskChart = ({ alerts, formatFullDateTime }) => {
+// Sepsis Risk Chart - shows probability over time with clinical recommendations
+const SepsisRiskChart = ({ alerts, formatFullDateTime, subjectId, getRecommendationForAlert }) => {
   const chartRef = useRef(null);
   const [selectedPoint, setSelectedPoint] = useState(null);
+  const [selectedRecommendation, setSelectedRecommendation] = useState(null);
 
   useEffect(() => {
     if (!chartRef.current || alerts.length === 0) return;
@@ -573,17 +578,22 @@ const SepsisRiskChart = ({ alerts, formatFullDateTime }) => {
 
     // Prepare data
     const data = alerts
-      .map(alert => ({
-        time: new Date(alert.event_time),
-        timeStr: alert.event_time,
-        probability: (alert.prediction?.sepsis_probability || 0) * 100,
-        riskLevel: alert.prediction?.risk_level || 'UNKNOWN',
-        sofa: alert.prediction?.sofa_score || 0
-      }))
+      .map(alert => {
+        const recommendation = getRecommendationForAlert?.(subjectId, alert.event_time);
+        return {
+          time: new Date(alert.event_time),
+          timeStr: alert.event_time,
+          probability: (alert.prediction?.sepsis_probability || 0) * 100,
+          riskLevel: alert.prediction?.risk_level || 'UNKNOWN',
+          sofa: alert.prediction?.sofa_score || 0,
+          hasRecommendation: !!recommendation,
+          recommendation: recommendation
+        };
+      })
       .sort((a, b) => a.time - b.time);
 
     // Chart dimensions
-    const margin = { top: 20, right: 20, bottom: 40, left: 50 };
+    const margin = { top: 30, right: 20, bottom: 40, left: 50 };
     const width = chartRef.current.clientWidth - margin.left - margin.right;
     const height = 150 - margin.top - margin.bottom;
 
@@ -665,6 +675,25 @@ const SepsisRiskChart = ({ alerts, formatFullDateTime }) => {
       'LOW': '#84cc16'
     };
 
+    // Add "!" indicators above dots with recommendations
+    svg.selectAll('.recommendation-indicator')
+      .data(data.filter(d => d.hasRecommendation))
+      .enter()
+      .append('text')
+      .attr('class', 'recommendation-indicator')
+      .attr('x', d => xScale(d.time))
+      .attr('y', d => yScale(d.probability) - 15)
+      .attr('text-anchor', 'middle')
+      .style('font-size', '16px')
+      .style('font-weight', 'bold')
+      .style('fill', '#dc2626')
+      .style('cursor', 'pointer')
+      .text('!')
+      .on('click', function(event, d) {
+        setSelectedPoint(d);
+        setSelectedRecommendation(d.recommendation);
+      });
+
     svg.selectAll('.dot')
       .data(data)
       .enter()
@@ -674,8 +703,8 @@ const SepsisRiskChart = ({ alerts, formatFullDateTime }) => {
       .attr('cy', d => yScale(d.probability))
       .attr('r', 5)
       .attr('fill', d => riskColors[d.riskLevel] || '#6b7280')
-      .attr('stroke', 'white')
-      .attr('stroke-width', 2)
+      .attr('stroke', d => d.hasRecommendation ? '#dc2626' : 'white')
+      .attr('stroke-width', d => d.hasRecommendation ? 3 : 2)
       .style('cursor', 'pointer')
       .on('mouseover', function(event, d) {
         d3.select(this).attr('r', 7);
@@ -685,6 +714,7 @@ const SepsisRiskChart = ({ alerts, formatFullDateTime }) => {
             <div><strong>${d.riskLevel} RISK</strong></div>
             <div style="font-size: 16px; margin: 4px 0;"><strong>${d.probability.toFixed(1)}%</strong></div>
             <div>SOFA: ${d.sofa}</div>
+            ${d.hasRecommendation ? '<div style="color: #fca5a5; margin-top: 4px;">💊 Has Recommendation</div>' : ''}
             <div style="font-size: 10px; margin-top: 4px; opacity: 0.8;">${formatFullDateTime(d.timeStr)}</div>
           `);
       })
@@ -699,17 +729,20 @@ const SepsisRiskChart = ({ alerts, formatFullDateTime }) => {
       })
       .on('click', function(event, d) {
         setSelectedPoint(d);
+        setSelectedRecommendation(d.hasRecommendation ? d.recommendation : null);
       });
 
     return () => {
       tooltip.remove();
     };
-  }, [alerts, formatFullDateTime]);
+  }, [alerts, formatFullDateTime, subjectId, getRecommendationForAlert]);
 
   return (
     <div style={{ marginTop: '10px' }}>
       <div ref={chartRef} style={{ width: '100%', minHeight: '150px' }}></div>
-      {selectedPoint && (
+
+      {/* Show basic info or recommendation */}
+      {selectedPoint && !selectedRecommendation && (
         <div style={{
           marginTop: '10px',
           padding: '12px',
@@ -727,6 +760,112 @@ const SepsisRiskChart = ({ alerts, formatFullDateTime }) => {
           <div style={{ display: 'flex', gap: '20px', fontSize: '13px', color: '#000' }}>
             <div><strong>Probability:</strong> {selectedPoint.probability.toFixed(1)}%</div>
             <div><strong>SOFA Score:</strong> {selectedPoint.sofa}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Show full recommendation */}
+      {selectedRecommendation && (
+        <div style={{
+          marginTop: '10px',
+          padding: '16px',
+          background: '#fef2f2',
+          borderRadius: '6px',
+          borderLeft: '4px solid #dc2626'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <h4 style={{ margin: 0, color: '#991b1b' }}>💊 Clinical Recommendation</h4>
+            <button
+              onClick={() => setSelectedRecommendation(null)}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '20px',
+                cursor: 'pointer',
+                color: '#991b1b'
+              }}
+            >×</button>
+          </div>
+
+          <div style={{ marginBottom: '12px', fontSize: '13px', color: '#7f1d1d' }}>
+            <strong>Patient:</strong> {selectedRecommendation.sepsis_alert.subject_id} •
+            <strong> Risk:</strong> {selectedRecommendation.sepsis_alert.risk_level} ({(selectedRecommendation.sepsis_alert.sepsis_probability * 100).toFixed(1)}%)
+          </div>
+
+          {/* Immediate Actions */}
+          <div style={{ marginBottom: '12px' }}>
+            <h5 style={{ margin: '0 0 8px 0', color: '#7f1d1d' }}>Immediate Actions:</h5>
+            {selectedRecommendation.immediate_actions.map((action, idx) => (
+              <div key={idx} style={{
+                padding: '8px',
+                marginBottom: '6px',
+                background: 'white',
+                borderRadius: '4px',
+                fontSize: '13px'
+              }}>
+                <div style={{ fontWeight: '600', color: '#000' }}>
+                  <span style={{
+                    background: action.priority === 'IMMEDIATE' ? '#dc2626' : '#f97316',
+                    color: 'white',
+                    padding: '2px 6px',
+                    borderRadius: '3px',
+                    fontSize: '11px',
+                    marginRight: '8px'
+                  }}>
+                    {action.priority}
+                  </span>
+                  {action.action}
+                </div>
+                <div style={{ marginTop: '4px', fontSize: '12px', color: '#6b7280' }}>
+                  <strong>Timing:</strong> {action.timing} • <strong>Rationale:</strong> {action.rationale}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Monitoring */}
+          <div style={{ marginBottom: '12px' }}>
+            <h5 style={{ margin: '0 0 8px 0', color: '#7f1d1d' }}>Monitoring Protocol:</h5>
+            <div style={{ padding: '8px', background: 'white', borderRadius: '4px', fontSize: '13px', color: '#000' }}>
+              <div style={{ marginBottom: '4px' }}>
+                <strong>Vitals:</strong> {selectedRecommendation.monitoring.vital_signs.join(', ')}
+              </div>
+              <div style={{ marginBottom: '4px' }}>
+                <strong>Labs:</strong> {selectedRecommendation.monitoring.laboratory_tests.join(', ')}
+              </div>
+              <div>
+                <strong>Frequency:</strong> {selectedRecommendation.monitoring.frequency}
+              </div>
+            </div>
+          </div>
+
+          {/* Clinical Rationale */}
+          <div style={{ marginBottom: '12px' }}>
+            <h5 style={{ margin: '0 0 8px 0', color: '#7f1d1d' }}>Clinical Rationale:</h5>
+            <div style={{ padding: '8px', background: 'white', borderRadius: '4px', fontSize: '13px', color: '#374151' }}>
+              {selectedRecommendation.clinical_rationale}
+            </div>
+          </div>
+
+          {/* Evidence Sources */}
+          <div>
+            <h5 style={{ margin: '0 0 8px 0', color: '#7f1d1d' }}>Evidence Sources:</h5>
+            {selectedRecommendation.evidence_sources.map((source, idx) => (
+              <div key={idx} style={{
+                padding: '6px 8px',
+                marginBottom: '4px',
+                background: 'white',
+                borderRadius: '4px',
+                fontSize: '12px',
+                color: '#374151'
+              }}>
+                <strong>{source.source_file}</strong> (Page {source.page_number}) • Relevance: {(source.relevance_score * 100).toFixed(0)}%
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: '8px', fontSize: '11px', color: '#991b1b', textAlign: 'right' }}>
+            Generated in {selectedRecommendation.generation_time_ms}ms • {selectedRecommendation.model_version}
           </div>
         </div>
       )}
