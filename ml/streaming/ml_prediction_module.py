@@ -369,7 +369,10 @@ class MLPredictionModule:
                 alert = SepsisAlert(
                     event_type="SEPSIS_ALERT",
                     event_time=event_time,  # Use simulation time, not real time
-                    patient=PatientReference(subject_id=state.subject_id),
+                    patient=PatientReference(
+                        subject_id=state.subject_id,
+                        age=state.age  # Include age for RAG filtering
+                    ),
                     admission=AdmissionReference(hadm_id=hadm_id),
                     prediction=SepsisPrediction(
                         sepsis_probability=probability,
