@@ -176,11 +176,13 @@ async def root():
             "icu_admissions": "/api/icu-admissions",
             "vitals": "/api/vitals",
             "sepsis_alerts": "/api/sepsis-alerts",
+            "clinical_recommendations": "/api/clinical-recommendations",
             "stream_admissions": "/stream/admissions",
             "stream_labs": "/stream/labs",
             "stream_icu_admissions": "/stream/icu-admissions",
             "stream_vitals": "/stream/vitals",
             "stream_sepsis_alerts": "/stream/sepsis-alerts",
+            "stream_clinical_recommendations": "/stream/clinical-recommendations",
             "clock_status": "/clock/status",
             "clock_current": "/clock/current",
             "clock_tick": "/clock/tick",
@@ -205,12 +207,15 @@ async def health_check():
         "icu_sse_clients": len(unified_consumer.icu_sse_queues) if unified_consumer else 0,
         "vitals_sse_clients": len(unified_consumer.vitals_sse_queues) if unified_consumer else 0,
         "sepsis_sse_clients": len(unified_consumer.sepsis_sse_queues) if unified_consumer else 0,
+        "recommendation_sse_clients": len(unified_consumer.recommendation_sse_queues) if unified_consumer else 0,
         "recent_admissions": len(unified_consumer.recent_admissions) if unified_consumer else 0,
         "recent_labs": len(unified_consumer.recent_labs) if unified_consumer else 0,
         "recent_icu_admissions": len(unified_consumer.recent_icu_admissions) if unified_consumer else 0,
         "recent_chartevents": len(unified_consumer.recent_chartevents) if unified_consumer else 0,
         "recent_sepsis_alerts": len(unified_consumer.recent_sepsis_alerts) if unified_consumer else 0,
+        "recent_recommendations": len(unified_consumer.recent_recommendations) if unified_consumer else 0,
         "ml_module_stats": unified_consumer.ml_module.get_stats() if (unified_consumer and unified_consumer.ml_module) else {},
+        "rag_module_enabled": unified_consumer.rag_module is not None if unified_consumer else False,
     }
 
 
@@ -415,6 +420,47 @@ async def stream_sepsis_alerts(request: Request):
             logger.info("Sepsis alerts SSE stream cancelled")
         finally:
             unified_consumer.unsubscribe_sepsis_alerts(queue)
+
+    return EventSourceResponse(event_generator())
+
+
+@app.get("/api/clinical-recommendations")
+async def get_recent_recommendations() -> List[dict]:
+    """Get recent RAG-generated clinical recommendations"""
+    if not unified_consumer:
+        return []
+    return unified_consumer.get_recent_recommendations()
+
+
+@app.get("/stream/clinical-recommendations")
+async def stream_clinical_recommendations(request: Request):
+    """SSE endpoint for clinical recommendations stream"""
+    if not unified_consumer:
+        return {"error": "Consumer not available"}
+
+    queue = unified_consumer.subscribe_recommendations()
+
+    async def event_generator():
+        try:
+            yield {
+                "event": "connected",
+                "data": json.dumps({"message": "Connected to clinical recommendations stream"})
+            }
+
+            while True:
+                if await request.is_disconnected():
+                    break
+
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    yield {"event": "recommendation", "data": json.dumps(event)}
+                except asyncio.TimeoutError:
+                    yield {"comment": "keepalive"}
+
+        except asyncio.CancelledError:
+            logger.info("Clinical recommendations SSE stream cancelled")
+        finally:
+            unified_consumer.unsubscribe_recommendations(queue)
 
     return EventSourceResponse(event_generator())
 

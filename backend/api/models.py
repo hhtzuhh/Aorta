@@ -4,7 +4,7 @@ Pydantic models for hospital admission and lab events
 Models match the JSON schema produced by stream_admissions_coordinated.py and stream_labs.py
 """
 
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, computed_field
 
 
@@ -12,6 +12,7 @@ from pydantic import BaseModel, computed_field
 class PatientReference(BaseModel):
     """Minimal patient reference (used in lab events)"""
     subject_id: str
+    age: Optional[int] = None  # Add age for RAG filtering
 
 
 class AdmissionReference(BaseModel):
@@ -241,5 +242,118 @@ class SepsisAlert(BaseModel):
                     "model_version": "v1",
                     "sofa_score": 5.0,
                 },
+            }
+        }
+
+
+# ============================================================
+# RAG-Generated Clinical Recommendations
+# ============================================================
+
+
+class RecommendationAction(BaseModel):
+    """Individual clinical action from RAG recommendation"""
+
+    action: str  # e.g., "Obtain blood cultures"
+    priority: str  # IMMEDIATE, URGENT, ROUTINE
+    timing: str  # e.g., "Within 1 hour", "Before antibiotics"
+    rationale: str  # Clinical reasoning
+
+
+class MonitoringProtocol(BaseModel):
+    """Vital signs and labs to monitor"""
+
+    vital_signs: List[str]  # e.g., ["Blood pressure", "Heart rate", "SpO2"]
+    laboratory_tests: List[str]  # e.g., ["Lactate", "Procalcitonin"]
+    frequency: str  # e.g., "Every 2 hours"
+
+
+class EvidenceSource(BaseModel):
+    """Source citation for recommendation"""
+
+    source_file: str  # PDF filename
+    page_number: int
+    section: str  # Section heading
+    relevance_score: float  # 0-1 similarity score
+
+
+class SepsisAlertReference(BaseModel):
+    """Reference to triggering sepsis alert"""
+
+    subject_id: str
+    hadm_id: Optional[str] = None
+    sepsis_probability: float
+    risk_level: str
+    alert_time: str
+
+
+class ClinicalRecommendation(BaseModel):
+    """
+    RAG-generated clinical recommendation for sepsis management
+
+    Published to clinical-recommendations Kafka topic when
+    sepsis alert probability >= threshold (default 0.5)
+    """
+
+    event_type: str = "CLINICAL_RECOMMENDATION"
+    event_time: str
+    recommendation_id: str  # Unique ID for this recommendation
+
+    # Reference to triggering alert
+    sepsis_alert: SepsisAlertReference
+
+    # Generated recommendations
+    immediate_actions: List[RecommendationAction]  # Hour-1 Bundle
+    monitoring: MonitoringProtocol
+    clinical_rationale: str  # Brief explanation
+    evidence_sources: List[EvidenceSource]  # Source citations
+
+    # Metadata
+    model_version: str = "gemini-2.0-flash-001"
+    generation_time_ms: int  # Time to generate
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "event_type": "CLINICAL_RECOMMENDATION",
+                "event_time": "2024-12-27T15:30:05Z",
+                "recommendation_id": "rec_abc123",
+                "sepsis_alert": {
+                    "subject_id": "10006701",
+                    "hadm_id": "123456",
+                    "sepsis_probability": 0.72,
+                    "risk_level": "HIGH",
+                    "alert_time": "2024-12-27T15:30:00Z"
+                },
+                "immediate_actions": [
+                    {
+                        "action": "Obtain blood cultures before antibiotics",
+                        "priority": "IMMEDIATE",
+                        "timing": "Within 1 hour",
+                        "rationale": "Essential for identifying pathogen"
+                    },
+                    {
+                        "action": "Administer broad-spectrum antibiotics",
+                        "priority": "IMMEDIATE",
+                        "timing": "Within 1 hour",
+                        "rationale": "Early antibiotics reduce mortality"
+                    }
+                ],
+                "monitoring": {
+                    "vital_signs": ["Blood pressure", "Heart rate", "SpO2"],
+                    "laboratory_tests": ["Lactate", "Procalcitonin"],
+                    "frequency": "Every 2 hours"
+                },
+                "clinical_rationale": "High sepsis risk requires Hour-1 Bundle per Surviving Sepsis Campaign guidelines",
+                "evidence_sources": [
+                    {
+                        "source_file": "surviving_sepsis_2021.pdf",
+                        "page_number": 12,
+                        "section": "Hour-1 Bundle",
+                        "relevance_score": 0.92
+                    }
+                ],
+                "model_version": "gemini-2.0-flash-001",
+                "generation_time_ms": 2500
             }
         }
