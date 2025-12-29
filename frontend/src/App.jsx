@@ -6,6 +6,7 @@
 
 import { useMultiStreamSSE } from './hooks/useMultiStreamSSE';
 import { Header } from './components/Header';
+import { SimulationControl } from './components/SimulationControl';
 import TimelineContainer from './components/Timeline/TimelineContainer';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ClockProvider } from './contexts/ClockContext';
@@ -14,7 +15,7 @@ import './App.css';
 function App() {
   // Connect to all SSE streams
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-  const { patients, connectionStatus } = useMultiStreamSSE(
+  const { patients, connectionStatus, clearPatients } = useMultiStreamSSE(
     `${API_URL}/stream/admissions`,
     `${API_URL}/stream/labs`,
     `${API_URL}/stream/icu-admissions`,
@@ -62,7 +63,13 @@ function App() {
           connectionStatus={connectionStatus}
         />
 
-      <div className="stats-bar">
+      <div className="dashboard-layout">
+        <aside className="sidebar">
+          <SimulationControl onClearData={clearPatients} />
+        </aside>
+
+        <div className="main-content">
+          <div className="stats-bar">
         <div className="stat-card">
           <div className="stat-label">Patients</div>
           <strong>{patients.length}</strong>
@@ -203,9 +210,11 @@ function App() {
         </div>
       </main>
 
-      <footer className="dashboard-footer">
-        <p>Aorta v0.2.0 • Multi-patient timeline powered by Confluent Cloud + FastAPI + D3.js</p>
-      </footer>
+        <footer className="dashboard-footer">
+          <p>Aorta v0.2.0 • Multi-patient timeline powered by Confluent Cloud + FastAPI + D3.js</p>
+        </footer>
+        </div>
+      </div>
       </div>
     </ClockProvider>
   );

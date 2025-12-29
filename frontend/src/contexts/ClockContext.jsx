@@ -16,7 +16,8 @@ export const ClockProvider = ({ children }) => {
   const [tickIntervalSeconds, setTickIntervalSeconds] = useState(2.0);
 
   useEffect(() => {
-    const CLOCK_URL = 'http://localhost:9000/status';
+    // Updated to use embedded clock in backend API (port 8000)
+    const CLOCK_URL = 'http://localhost:8000/clock/status';
 
     const fetchClock = async () => {
       try {

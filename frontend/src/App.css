@@ -34,6 +34,32 @@ body {
   flex-direction: column;
 }
 
+/* Dashboard Layout with Sidebar */
+.dashboard-layout {
+  display: flex;
+  flex: 1;
+  gap: 0;
+  background-color: var(--color-bg);
+}
+
+.sidebar {
+  width: 380px;
+  background: white;
+  border-right: 1px solid var(--color-border);
+  padding: 1.5rem;
+  overflow-y: auto;
+  height: calc(100vh - 100px);
+  position: sticky;
+  top: 0;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 /* Header */
 .header {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -190,10 +216,8 @@ body {
 /* Main Dashboard */
 .dashboard-main {
   flex: 1;
-  max-width: 1200px;
   width: 100%;
-  margin: 0 auto;
-  padding: 0 2rem 2rem 2rem;
+  padding: 0 1.5rem 2rem 1.5rem;
 }
 
 /* Admission Feed */
@@ -453,4 +477,9 @@ body {
   .priority-indicator {
     font-size: 1.5rem;
   }
+}
+
+/* Stats Bar - adjusted for sidebar layout */
+.stats-bar {
+  padding: 1rem 1.5rem;
 }

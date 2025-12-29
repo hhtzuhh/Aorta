@@ -558,6 +558,12 @@ export const useMultiStreamSSE = (admissionsUrl, labsUrl, icuUrl, vitalsUrl, sep
     };
   }, [admissionsUrl, labsUrl, icuUrl, vitalsUrl, sepsisAlertsUrl, maxPatients]);
 
+  // Function to clear all patient data
+  const clearPatients = () => {
+    console.log('Clearing all patient data...');
+    setPatients(new Map());
+  };
+
   // Convert Map to Array for rendering
   const patientArray = Array.from(patients.values()).sort(
     (a, b) => b.firstSeen - a.firstSeen
@@ -566,6 +572,7 @@ export const useMultiStreamSSE = (admissionsUrl, labsUrl, icuUrl, vitalsUrl, sep
   return {
     patients: patientArray,
     patientMap: patients,
-    connectionStatus
+    connectionStatus,
+    clearPatients
   };
 };
