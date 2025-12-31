@@ -1,0 +1,53 @@
+steps:
+  # Build backend Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/aorta-backend:latest'
+      - '.'
+    timeout: 600s
+
+  # Push to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/aorta-backend:latest'
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'aorta-backend'
+      - '--image=gcr.io/$PROJECT_ID/aorta-backend:latest'
+      - '--region=us-central1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--memory=2Gi'
+      - '--cpu=2'
+      - '--timeout=3600'
+      # Database
+      - '--set-env-vars=DB_BUCKET=${_DB_BUCKET}'
+      # Kafka (from Secret Manager)
+      - '--set-env-vars=AORTA_KAFKA_SASL_MECHANISM=PLAIN'
+      - '--set-env-vars=AORTA_KAFKA_SECURITY_PROTOCOL=SASL_SSL'
+      - '--set-secrets=AORTA_KAFKA_BOOTSTRAP_SERVERS=aorta-kafka-bootstrap-servers:latest'
+      - '--set-secrets=AORTA_KAFKA_SASL_USERNAME=aorta-kafka-sasl-username:latest'
+      - '--set-secrets=AORTA_KAFKA_SASL_PASSWORD=aorta-kafka-sasl-password:latest'
+      # Producer service URL (NEW)
+      - '--set-env-vars=PRODUCER_SERVICE_URL=${_PRODUCER_SERVICE_URL}'
+
+images:
+  - 'gcr.io/$PROJECT_ID/aorta-backend:latest'
+
+timeout: 1200s
+
+substitutions:
+  _DB_BUCKET: 'confluent-hack-aorta-database'
+  _PRODUCER_SERVICE_URL: 'https://aorta-producer-1064767257794.us-central1.run.app'
+
+options:
+  machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY

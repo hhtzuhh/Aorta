@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     kafka_group_id: str = "aorta-dashboard-consumer-v2"  # Changed to force fresh start
 
     # Application Settings
-    cors_origins: List[str] = ["http://localhost:5173"]
+    cors_origins: List[str] = ["*"]  # Allow all origins (can be restricted via env var)
     max_recent_admissions: int = 50
 
     # RAG Configuration (MongoDB Atlas + Gemini)

@@ -1,136 +1,160 @@
-# Aorta
+# Aorta: Real-Time Hospital Admission & Sepsis Monitoring
 
-Real-time hospital admission monitoring system using Confluent Cloud + GCP.
+Aorta is a real-time event streaming platform designed to monitor hospital admissions and predict sepsis risks using the MIMIC-IV dataset. It leverages Confluent Cloud for data streaming, Google Cloud Platform (GCP) for hosting, and Generative AI (Gemini) for clinical recommendations.
 
-Built for Confluent Hackathon 2024 - demonstrates streaming AI application for healthcare.
+## 🏗 System Architecture
 
-## Project Overview
+The system consists of five main components:
 
-**Goal**: Stream hospital admission events in real-time, detect high-priority cases, and alert medical staff.
+1.  **Infrastructure (Terraform)**: Automated setup of Confluent Cloud resources (Kafka Cluster, Topics, Flink Compute Pool, Schema Registry).
+2.  **Data Producers (Python)**: Time-coordinated streaming of clinical events (Admissions, ICU Stays, Labs, Vitals) to Kafka.
+3.  **ML Engine (XGBoost)**: Real-time sepsis prediction model trained on MIMIC-IV data (6-hour prior prediction window).
+4.  **RAG System (Gemini + MongoDB)**: Retrieval-Augmented Generation system that provides clinical treatment recommendations based on sepsis alerts and medical guidelines.
+5.  **Web Application (FastAPI + React)**: A real-time dashboard visualizing patient flow, alerts, and risk scores using Server-Sent Events (SSE).
 
-**Tech Stack**:
-- **Data Source**: MIMIC-IV medical database (SQLite)
-- **Streaming**: Confluent Cloud (Kafka + Flink)
-- **Cloud**: Google Cloud Platform (Vertex AI, BigQuery, Cloud Run)
-- **Infrastructure**: Terraform (automated setup/teardown)
+### Data Flow
+![Alt Text](images/Aorta_arch.png)
+![Alt Text](images/icu_pic.jpg)
 
-## Quick Start
 
-### 1. Set Up Infrastructure (Terraform)
+## 🚀 Prerequisites
+
+-   **Python 3.11+**
+-   **Node.js 18+**
+-   **Terraform**
+-   **Confluent Cloud Account**
+-   **Google Cloud Platform Account**
+-   **MongoDB Atlas Account** (for RAG vector store)
+-   **uv** (Python package manager)
+
+## 🛠 Setup & Installation
+
+### 1. Infrastructure Setup (Terraform)
+Navigate to the `terraform` directory to provision Confluent Cloud resources.
 
 ```bash
-cd terraform/
-
-# Configure your Confluent Cloud credentials
+cd terraform
 cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your API keys
-
-# Create all infrastructure
+# Edit terraform.tfvars with your Confluent Cloud API keys and GCP details
 terraform init
 terraform apply
 ```
+*Outputs will provide Kafka configuration needed for the application.*
 
-See [terraform/README.md](terraform/README.md) for detailed instructions.
+### 2. Application Setup
 
-### 2. Stream Admission Data (Python)
+Install Python dependencies using `uv`:
 
 ```bash
-# Install dependencies
-pip install confluent-kafka pandas
+uv sync
+source .venv/bin/activate
+```
 
-# Get Kafka config from terraform
+#### Kafka Configuration
+Generate the Kafka configuration file from Terraform outputs:
+
+```bash
+mkdir Aorta/_data
+cd terraform
+terraform output -json kafka_config > ../_data/kafka_config.json
 cd ..
-terraform -chdir=terraform output -json kafka_config > kafka_config.json
-
-# Stream admissions to Kafka
-python stream_admissions.py
 ```
 
-### 3. Process with Flink (SQL)
+#### Data & RAG Configuration
+1.  **Download Database**: Ensure `mimic_demo.db` is placed in the `Aorta/_data/` directory.
+download from physionet
 
-Create Flink SQL job in Confluent Cloud console to detect emergency admissions.
+2.  **RAG Setup**: Create `Aorta/_data/rag_config.json` using the following template:
 
-### 4. Build Dashboard (Optional)
-
-Deploy Cloud Run app to visualize real-time alerts.
-
-## Project Structure
+```json
+{
+  "mongodb_connection_string": "cluster0.xxxxx.mongodb.net",
+  "mongodb_username": "your_mongodb_username",
+  "mongodb_password": "your_mongodb_password",
+  "mongodb_database": "sepsis_guidelines",
+  "mongodb_collection": "guideline_chunks",
+  "gemini_api_key": "your_gemini_api_key_here",
+  "rag_enabled": true,
+  "rag_probability_threshold": 0.5,
+  "_comments": {
+    "mongodb_connection_string": "MongoDB Atlas cluster URL (without credentials)",
+    "mongodb_username": "MongoDB Atlas database user",
+    "mongodb_password": "MongoDB Atlas database password",
+    "gemini_api_key": "Get from https://aistudio.google.com/app/apikey",
+    "rag_probability_threshold": "Minimum sepsis probability to generate recommendations (0.5 = HIGH/CRITICAL only)"
+  }
+}
 
 ```
-Aorta/
-├── terraform/              # Infrastructure as Code
-│   ├── main.tf            # Confluent Cloud resources
-│   ├── variables.tf       # Configuration variables
-│   ├── outputs.tf         # Resource outputs
-│   └── README.md          # Setup instructions
-│
-├── src/                   # Application code (to be created)
-│   ├── producer.py       # Stream admissions to Kafka
-│   ├── consumer.py       # Read alerts from Kafka
-│   └── flink_jobs/       # Flink SQL definitions
-│
-├── data/                  # MIMIC-IV data (link to parent)
-│   └── mimic_demo.db     # SQLite database
-│
-└── README.md             # This file
-```
 
-## Development Workflow
 
-### Daily Dev Cycle
-
-**Morning** (Start of work):
+### 3. ML Model Training 
 ```bash
-cd terraform/
-terraform apply    # Create infrastructure (~5 min)
+# Train on local MIMIC-IV demo data
+python -m ml.training.train_local
 ```
+this generate model into models/local
 
-**Evening** (End of work):
+### 4. RAG Knowledge Base Ingestion
+To ingest medical PDF guidelines into the vector store:
+
 ```bash
-terraform destroy  # Delete everything to save cost (~5 min)
+python -m rag.ingest_guidelines
 ```
 
-**Why?** Confluent Cloud costs ~$50-100/day when running. Destroying resources stops billing.
+## 🖥 Usage
 
-### Cost Optimization
+### Start the Backend API
+The backend serves the API and consumes Kafka messages to push to the frontend.
 
-- **Terraform**: Automates create/destroy cycle
-- **Free tier**: Confluent gives $400 credit
-- **Development**: Only run infrastructure when actively working
-- **Production**: Keep running for demo/presentation
-
-## Architecture
-
-```
-MIMIC-IV SQLite DB
-    ↓
-Python Producer (stream_admissions.py)
-    ↓
-Kafka Topic: hospital-admissions
-    ↓
-Flink SQL (detect emergencies)
-    ↓
-Kafka Topic: admission-alerts
-    ↓
-Cloud Run Dashboard (visualize)
+```bash
+# From Aorta/ directory
+uvicorn backend.api.main:app --reload --port 8000
 ```
 
-## Next Steps
+### Start the Producer Service
+The producer service coordinates the simulation clock and streams data.
 
-1. ✅ Set up Terraform infrastructure
-2. ⏳ Write Python Kafka producer
-3. ⏳ Create Flink SQL job for alerts
-4. ⏳ Build simple dashboard
-5. ⏳ Record demo video
-6. ⏳ Submit to hackathon
+```bash
+# From Aorta/ directory
+uvicorn producer_service.main:app --reload --port 9001
+```
 
-## Resources
+### Start the Frontend
+Navigate to the frontend directory to launch the dashboard.
 
-- [Confluent Cloud Console](https://confluent.cloud)
-- [MIMIC-IV Documentation](https://mimic.mit.edu/docs/iv/)
-- [Terraform Setup Guide](terraform/README.md)
-- [Hackathon Rules](../docs/rule.md)
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-## License
+Visit `http://localhost:5173` to view the dashboard.
 
-Educational project for Confluent Hackathon 2024.
+### Run a Simulation
+You can start a simulation via the Producer Service API or the Frontend controls:
+
+```bash
+curl -X POST http://localhost:9001/start \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subject_ids": [10000032, 10000980], 
+    "start_time": "2110-01-01 00:00:00",
+    "tick_minutes": 15
+  }'
+```
+
+## 📂 Project Structure
+
+-   `terraform/`: Infrastructure as Code for Confluent Cloud.
+-   `producers/`: Python scripts for streaming MIMIC-IV data.
+-   `producer_service/`: API to control the simulation clock and producers.
+-   `coordinator/`: Logic for synchronizing multiple data streams.
+-   `backend/`: FastAPI application for the web interface (consumer).
+-   `frontend/`: React application for visualization.
+-   `ml/`: Machine Learning pipeline (Feature Engineering, Training, Inference).
+-   `rag/`: Retrieval-Augmented Generation for clinical insights.
+-   `_data/`: Local data storage (MIMIC-IV demo database).
+
+## 📄 License
+This project is for educational and demonstration purposes. MIMIC-IV data requires a credentialed access agreement.

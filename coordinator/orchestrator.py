@@ -121,6 +121,11 @@ def main():
         default=10,
         help='Minutes per tick window (default: 10)'
     )
+    parser.add_argument(
+        '--skip-clock-wait',
+        action='store_true',
+        help='Skip waiting for clock service (use when clock is embedded)'
+    )
 
     args = parser.parse_args()
 
@@ -138,18 +143,21 @@ def main():
         print(f"   Max ticks: {args.max_ticks}")
     print()
 
-    # Wait for clock service
-    try:
-        wait_for_clock_service(args.clock_url)
-    except TimeoutError as e:
-        print(f"❌ Error: {e}")
-        print("\n💡 Tip: Start the clock service first:")
-        print("   cd Aorta/coordinator")
-        print("   uvicorn main:app --reload --port 9000")
-        return 1
+    # Wait for clock service (unless skipped for embedded mode)
+    if not args.skip_clock_wait:
+        try:
+            wait_for_clock_service(args.clock_url)
+        except TimeoutError as e:
+            print(f"❌ Error: {e}")
+            print("\n💡 Tip: Start the clock service first:")
+            print("   cd Aorta/coordinator")
+            print("   uvicorn main:app --reload --port 9000")
+            return 1
+    else:
+        print("⏭️  Skipping clock service wait (embedded mode)")
 
-    # Reset clock if start time provided
-    if args.start_time:
+    # Reset clock if start time provided (skip in embedded mode - backend already reset it)
+    if args.start_time and not args.skip_clock_wait:
         print(f"\n⏰ Resetting clock to start time: {args.start_time}")
         try:
             response = requests.post(
@@ -166,6 +174,8 @@ def main():
         except Exception as e:
             print(f"   ❌ Failed to reset clock: {e}")
             return 1
+    elif args.start_time and args.skip_clock_wait:
+        print(f"\n⏭️  Skipping clock reset (backend already reset to {args.start_time})")
 
     # Initialize unified producer
     print("\n🔧 Initializing unified producer...")
@@ -182,13 +192,17 @@ def main():
 
     print("\n✅ Producer initialized")
 
-    # Start clock
-    try:
-        start_clock(args.clock_url, args.tick_interval)
-    except Exception as e:
-        print(f"❌ Failed to start clock: {e}")
-        producer.close()
-        return 1
+    # Start clock (skip in embedded mode - backend already started it)
+    if not args.skip_clock_wait:
+        try:
+            start_clock(args.clock_url, args.tick_interval)
+        except Exception as e:
+            print(f"❌ Failed to start clock: {e}")
+            producer.close()
+            return 1
+    else:
+        print("⏭️  Skipping clock start (backend already started it)")
+        print("   Producer will fetch time windows from clock API")
 
     # Main loop
     print("\n🚀 Starting stream processing...")
@@ -203,7 +217,7 @@ def main():
 
             # Get current window
             try:
-                response = requests.get(f"{args.clock_url}/current", timeout=5)
+                response = requests.get(f"{args.clock_url}/current", timeout=15)
                 response.raise_for_status()
                 window = response.json()
                 window_start = window["window_start"]

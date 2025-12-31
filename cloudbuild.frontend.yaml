@@ -1,0 +1,41 @@
+steps:
+  # Build frontend Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/aorta-frontend:latest'
+      - '-f'
+      - 'frontend/Dockerfile'
+      - './frontend'
+    timeout: 600s
+
+  # Push to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/aorta-frontend:latest'
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'aorta-frontend'
+      - '--image=gcr.io/$PROJECT_ID/aorta-frontend:latest'
+      - '--region=us-central1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--memory=512Mi'
+      - '--cpu=1'
+      - '--port=8080'
+
+images:
+  - 'gcr.io/$PROJECT_ID/aorta-frontend:latest'
+
+timeout: 1200s
+
+options:
+  machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY

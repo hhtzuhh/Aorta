@@ -17,7 +17,8 @@ export const ClockProvider = ({ children }) => {
 
   useEffect(() => {
     // Updated to use embedded clock in backend API (port 8000)
-    const CLOCK_URL = 'http://localhost:8000/clock/status';
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const CLOCK_URL = `${API_BASE}/clock/status`;
 
     const fetchClock = async () => {
       try {

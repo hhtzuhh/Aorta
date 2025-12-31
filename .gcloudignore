@@ -1,0 +1,41 @@
+# gcloudignore for Cloud Build - allows ML models unlike .gitignore
+
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# Data files (downloaded from Cloud Storage)
+_data/mimic_demo.db
+_data/kafka_config.json
+_data/rag_config.json
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Development
+docs/
+terraform/
+scripts/
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Tests
+tests/
+
+# NOTE: Unlike .gitignore, we DO NOT exclude:
+# - ml/models/*/ (need models in Docker image)
+# - *.pkl (need model files)
+# - *.joblib (need model files)

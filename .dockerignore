@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.venv/
+venv/
+ENV/
+
+# Data files (will be downloaded from Cloud Storage)
+_data/mimic_demo.db
+_data/kafka_config.json
+_data/rag_config.json
+
+# RAG PDFs (already vectorized in MongoDB, not needed)
+rag/**/*.pdf
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Development
+.git/
+.gitignore
+.DS_Store
+*.md
+docs/
+terraform/
+scripts/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Tests
+tests/
+__pycache__/
+*.pyc

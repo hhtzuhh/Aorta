@@ -8,10 +8,13 @@ from multiple simultaneous connections.
 import json
 import sqlite3
 import requests
+import logging
 from pathlib import Path
 from typing import Optional, List, Tuple
 from confluent_kafka import Producer
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 class UnifiedProducer:
@@ -57,48 +60,120 @@ class UnifiedProducer:
         print(f"🎯 Filtering by patients: {', '.join(map(str, subject_ids))}")
 
     def _create_producer(self, kafka_config_path: str) -> Producer:
-        """Create single Kafka producer"""
-        if not Path(kafka_config_path).exists():
-            raise FileNotFoundError(f"Kafka config not found: {kafka_config_path}")
+        """Create single Kafka producer with env var fallback"""
+        import os
 
-        with open(kafka_config_path) as f:
-            config = json.load(f)
+        # Try environment variables first (production)
+        bootstrap_servers = os.getenv('AORTA_KAFKA_BOOTSTRAP_SERVERS')
 
-        return Producer({
-            'bootstrap.servers': config['bootstrap_servers'],
+        if bootstrap_servers:
+            # Load from environment variables
+            password = os.getenv('AORTA_KAFKA_SASL_PASSWORD')
+            newline_char = '\n'
+            logger.info("=" * 80)
+            logger.info("📝 KAFKA CONFIG SOURCE: ENVIRONMENT VARIABLES")
+            logger.info(f"   Bootstrap: {bootstrap_servers}")
+            logger.info(f"   Username: {os.getenv('AORTA_KAFKA_SASL_USERNAME', 'NOT SET')}")
+            logger.info(f"   Password length: {len(password) if password else 0}")
+            logger.info(f"   Password ends with newline: {password.endswith(newline_char) if password else False}")
+            logger.info("=" * 80)
+            config = {
+                'bootstrap_servers': bootstrap_servers,
+                'sasl_username': os.getenv('AORTA_KAFKA_SASL_USERNAME'),
+                'sasl_password': password,
+                'sasl_mechanism': os.getenv('AORTA_KAFKA_SASL_MECHANISM', 'PLAIN'),
+                'security_protocol': os.getenv('AORTA_KAFKA_SECURITY_PROTOCOL', 'SASL_SSL'),
+            }
+        else:
+            # Fallback to JSON file (development)
+            logger.info("=" * 80)
+            logger.info(f"📝 KAFKA CONFIG SOURCE: JSON FILE - {kafka_config_path}")
+            logger.info("=" * 80)
+            if not Path(kafka_config_path).exists():
+                raise FileNotFoundError(f"Kafka config not found: {kafka_config_path}")
+
+            with open(kafka_config_path) as f:
+                config = json.load(f)
+
+        # CRITICAL FIX: Strip protocol prefix from bootstrap.servers
+        # Terraform outputs "SASL_SSL://host:port" but librdkafka expects just "host:port"
+        # The prefix causes DNS resolution failures for secondary brokers
+        raw_bootstrap = config['bootstrap_servers']
+
+        # Simple string replacement (urlparse doesn't recognize SASL_SSL scheme)
+        clean_bootstrap = raw_bootstrap
+        for prefix in ['SASL_SSL://', 'sasl_ssl://', 'SSL://', 'ssl://', 'PLAINTEXT://', 'plaintext://']:
+            if clean_bootstrap.startswith(prefix):
+                clean_bootstrap = clean_bootstrap[len(prefix):]
+                break
+
+        logger.info("🔧 Creating Kafka producer...")
+        logger.info(f"   Raw bootstrap: {raw_bootstrap}")
+        logger.info(f"   Clean bootstrap: {clean_bootstrap}")
+        logger.info(f"   Security protocol: {config['security_protocol']}")
+        logger.info(f"   SASL mechanism: {config['sasl_mechanism']}")
+        logger.info(f"   SASL username: {config['sasl_username'][:5]}***")
+        logger.info(f"   Password first 10 chars: {config['sasl_password'][:10]}***")
+        logger.info(f"   Password last 10 chars: ***{config['sasl_password'][-10:]}")
+
+        conf = {
+            'bootstrap.servers': clean_bootstrap,  # Use CLEANED string
             'security.protocol': config['security_protocol'],
             'sasl.mechanism': config['sasl_mechanism'],
             'sasl.username': config['sasl_username'],
             'sasl.password': config['sasl_password'],
             'client.id': 'unified-producer',
-            'log_level': 0,
-        })
+            # Connection timeouts
+            'socket.timeout.ms': 60000,            # 60s socket timeout
+            'reconnect.backoff.ms': 100,           # Start reconnect at 100ms
+            'reconnect.backoff.max.ms': 10000,     # Max reconnect backoff 10s
+            # Batching for efficiency
+            'linger.ms': 50,                       # Wait 50ms to batch messages
+            'batch.size': 65536,                   # 64KB batches
+            # Logging
+            'log_level': 3,                        # Errors only (0=debug, 3=error, 7=none)
+        }
 
-    def warm_up(self, timeout=10) -> bool:
+        logger.info(f"   Final config bootstrap.servers: {conf['bootstrap.servers']}")
+
+        return Producer(conf)
+
+    def warm_up(self, timeout=30) -> bool:
         """Test connection by sending to one topic"""
+        print(f"🔥 Testing Kafka connection (timeout={timeout}s)...")
         delivery_success = [False]
+        error_msg = [None]
 
         def callback(err, msg):
             if err:
+                error_msg[0] = str(err)
                 print(f"   ❌ Connection test failed: {err}")
             else:
                 delivery_success[0] = True
+                print(f"   ✅ Test message delivered to {msg.topic()}")
 
-        self.producer.produce(
-            topic=self.topics['admissions'],
-            key="__warmup__",
-            value=b'{"test": true}',
-            callback=callback
-        )
-        self.producer.flush(timeout)
+        try:
+            self.producer.produce(
+                topic=self.topics['admissions'],
+                key="__warmup__",
+                value=b'{"test": true}',
+                callback=callback
+            )
+            print(f"   ⏳ Flushing producer (waiting for delivery)...")
+            self.producer.flush(timeout)
+        except Exception as e:
+            print(f"   ❌ Producer error: {e}")
+            return False
 
         if delivery_success[0]:
             print(f"   ✅ UnifiedProducer connected to Kafka")
+        else:
+            print(f"   ⚠️  Warm-up timeout or failed (error: {error_msg[0]})")
         return delivery_success[0]
 
     def get_current_window(self) -> Tuple[str, str]:
         """Get current time window from clock service"""
-        response = requests.get(f"{self.clock_url}/current", timeout=5)
+        response = requests.get(f"{self.clock_url}/current", timeout=15)
         response.raise_for_status()
         data = response.json()
         return data["window_start"], data["window_end"]
