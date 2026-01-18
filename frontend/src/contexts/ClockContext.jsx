@@ -16,8 +16,15 @@ export const ClockProvider = ({ children }) => {
   const [tickIntervalSeconds, setTickIntervalSeconds] = useState(2.0);
 
   useEffect(() => {
-    // Updated to use embedded clock in backend API (port 8000)
-    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    // Determine API URL (support for ?backend=prod)
+    const urlParams = new URLSearchParams(window.location.search);
+    const useProdBackend = urlParams.get('backend') === 'prod';
+    const PROD_API_URL = 'https://aorta-backend-1064767257794.us-central1.run.app';
+    
+    const API_BASE = useProdBackend 
+      ? PROD_API_URL 
+      : (import.meta.env.VITE_API_URL || 'http://localhost:8000');
+      
     const CLOCK_URL = `${API_BASE}/clock/status`;
 
     const fetchClock = async () => {

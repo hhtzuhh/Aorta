@@ -59,6 +59,13 @@ const TimelineContainer = ({ patients }) => {
           const labTime = new Date(lab.event_time);
           if (!minTime || labTime < minTime) minTime = labTime;
         });
+        // Also check ICU stays for earliest time
+        if (patient.icuStays) {
+          patient.icuStays.forEach((stay) => {
+            const stayTime = new Date(stay.intime);
+            if (!minTime || stayTime < minTime) minTime = stayTime;
+          });
+        }
       });
       if (!minTime) return null;
       centerTime = minTime;

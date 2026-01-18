@@ -14,7 +14,17 @@ import './App.css';
 
 function App() {
   // Connect to all SSE streams
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  // Allow switching to production backend via URL query param: ?backend=prod
+  const urlParams = new URLSearchParams(window.location.search);
+  const useProdBackend = urlParams.get('backend') === 'prod';
+  
+  const PROD_API_URL = 'https://aorta-backend-1064767257794.us-central1.run.app';
+  const API_URL = useProdBackend 
+    ? PROD_API_URL 
+    : (import.meta.env.VITE_API_URL || 'http://localhost:8000');
+
+  console.log(`Using API URL: ${API_URL}`);
+
   const { patients, connectionStatus, clearPatients } = useMultiStreamSSE(
     `${API_URL}/stream/admissions`,
     `${API_URL}/stream/labs`,
