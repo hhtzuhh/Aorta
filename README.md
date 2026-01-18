@@ -1,6 +1,22 @@
 # Aorta: Real-Time Hospital Admission & Sepsis Monitoring
 
-Aorta is a real-time event streaming platform designed to monitor hospital admissions and predict sepsis risks using the MIMIC-IV dataset. It leverages Confluent Cloud for data streaming, Google Cloud Platform (GCP) for hosting, and Generative AI (Gemini) for clinical recommendations.
+## Video
+https://youtu.be/35Gda8PxtP4
+
+## Introduction
+Aorta is an end-to-end real-time sepsis monitoring and prediction platform built for the Google X Confluent Hackathon 2025. It transforms static clinical data into actionable, real-time insights to bridge the critical gap in early sepsis detection.
+
+- Real-Time Data Pipeline: Leverages **Confluent Cloud (Kafka)** to ingest and coordinate continuous streams of hospital admissions, vitals, and lab results from the **MIMIC-IV** dataset.
+
+- Predictive Modeling: Utilizes an **XGBoost** binary classifier trained on 23 clinical features to detect sepsis risk patterns in real-time as patient data accumulates.
+
+- Advanced Data Preprocessing: Employs Scikit-learn’s IterativeImputer to handle the sparse and irregular nature of clinical data, using **multivariate regression** to estimate missing values for robust real-time inference.
+
+- Clinical Decision Support: Integrates a RAG (Retrieval-Augmented Generation) system powered by **Google Gemini** and MongoDB Atlas to provide evidence-based, age-appropriate treatment recommendations grounded in the Surviving Sepsis Campaign guidelines.
+
+- Cloud-Native Architecture: Deployed using a microservices pattern on **Google Cloud Platform**, featuring a React-based dashboard with sub-second latency updates via Server-Sent Events (SSE).
+
+
 
 ## 🏗 System Architecture
 
@@ -8,17 +24,48 @@ The system consists of five main components:
 
 1.  **Infrastructure (Terraform)**: Automated setup of Confluent Cloud resources (Kafka Cluster, Topics, Flink Compute Pool, Schema Registry).
 2.  **Data Producers (Python)**: Time-coordinated streaming of clinical events (Admissions, ICU Stays, Labs, Vitals) to Kafka.
-3.  **ML Engine (XGBoost)**: Real-time sepsis prediction model trained on MIMIC-IV data (6-hour prior prediction window).
+3.  **ML Engine (XGBoost)**: Real-time sepsis risk classification model trained on 23 clinical features from MIMIC-IV ICU data, designed to detect emerging sepsis patterns during patient monitoring.
 4.  **RAG System (Gemini + MongoDB)**: Retrieval-Augmented Generation system that provides clinical treatment recommendations based on sepsis alerts and medical guidelines.
 5.  **Web Application (FastAPI + React)**: A real-time dashboard visualizing patient flow, alerts, and risk scores using Server-Sent Events (SSE).
-
-### Data Flow
 ![Alt Text](images/Aorta_arch.png)
 ![Alt Text](images/icu_pic.jpg)
 
+## 🧠 How the ML Model Works
+
+**Training Approach:**
+- The XGBoost classifier is trained on MIMIC-IV demo ICU admission data using 23 clinical features
+- Features are extracted from the last available measurements during each patient's ICU stay
+- Labels indicate whether the patient received a sepsis diagnosis (from ICD-9/ICD-10 codes at discharge)
+- The model learns to distinguish clinical patterns associated with sepsis vs non-sepsis admissions
+
+**Real-Time Inference:**
+- As patient data streams in via Kafka, the system accumulates vital signs, lab results, and calculated SOFA scores
+- When sufficient data is available (≥50% of features), the model predicts current sepsis risk
+- Predictions are throttled (every 3 hours) to prevent alert fatigue, with exceptions for critical events
+- The system uses IterativeImputer (**Multivariate Imputation by Chained Equations (MICE)** algorithm with BayesianRidge regression) to handle missing values in real-time
+
+**Key Features Used:**
+- **Demographics**: Age, admission location
+- **Comorbidities**: Diabetes, hypertension, chronic kidney disease, CHF, COPD, cancer, liver disease
+- **Vital Signs**: Heart rate, blood pressure (systolic/diastolic/MAP), SpO2, respiratory rate, GCS, temperature
+- **Lab Results**: PaCO2, bilirubin
+- **Clinical Scores**: SOFA total, SOFA change, organ dysfunction indicator
+- **Interventions**: Mechanical ventilation status
+
+**Performance Metrics** (on MIMIC-IV demo test set):
+- AUC-ROC: 84.1% (strong discrimination ability)
+- Sensitivity: 80% (catches 4 out of 5 sepsis cases)
+- Specificity: 72% (correctly identifies non-sepsis 72% of the time)
+![Alt Text](ml/models/local/evaluation/confusion_matrix.png)
+![Alt Text](ml/models/local/evaluation/roc_curve.png)
+More evaluation result: see ml/models/local/evaluation
+
+
+**Clinical Value:**
+The model serves as a real-time screening tool that alerts clinicians when a patient's vital signs and lab values begin to match patterns seen in sepsis cases, enabling earlier investigation and intervention.
+
 
 ## 🚀 Prerequisites
-
 -   **Python 3.11+**
 -   **Node.js 18+**
 -   **Terraform**
