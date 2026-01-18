@@ -45,7 +45,7 @@ RUN echo '#!/bin/bash\n\
 set -e\n\
 python /app/download_db.py\n\
 echo "🚀 Starting Producer Service on port ${PORT}..."\n\
-exec uvicorn producer_service.main:app --host 0.0.0.0 --port ${PORT}\n\
+exec uvicorn producer_service.main:app --host 0.0.0.0 --port ${PORT} --no-access-log\n\
 ' > /app/start_producer.sh
 
 RUN chmod +x /app/start_producer.sh

@@ -43,7 +43,7 @@ fi\n\
 echo "📂 Checking ML models..."\n\
 ls -la /app/Aorta/ml/models/local/ 2>&1 || echo "❌ ML models directory not found"\n\
 echo "Starting Aorta backend..."\n\
-exec uvicorn backend.api.main:app --host 0.0.0.0 --port ${PORT:-8080}\n\
+exec uvicorn backend.api.main:app --host 0.0.0.0 --port ${PORT:-8080} --no-access-log\n\
 ' > /app/Aorta/start.sh && chmod +x /app/Aorta/start.sh
 
 # Expose port
