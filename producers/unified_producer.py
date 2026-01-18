@@ -131,7 +131,7 @@ class UnifiedProducer:
             'linger.ms': 50,                       # Wait 50ms to batch messages
             'batch.size': 65536,                   # 64KB batches
             # Logging
-            'log_level': 3,                        # Errors only (0=debug, 3=error, 7=none)
+            'log_level': 4, # 4: show warnings and errors                        # Errors only (0=debug, 3=error, 7=none)
         }
 
         logger.info(f"   Final config bootstrap.servers: {conf['bootstrap.servers']}")

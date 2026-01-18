@@ -39,7 +39,7 @@ class UnifiedConsumer:
             'group.id': 'aorta-unified-consumer-v1',
             'auto.offset.reset': 'earliest',
             'enable.auto.commit': True,
-            'log_level': 0,  # Suppress librdkafka logs
+            'log_level': 4, # Suppress librdkafka logs
         }
 
         # All topics we consume from (including sepsis-alerts from ML module)
@@ -72,7 +72,9 @@ class UnifiedConsumer:
         self.recommendation_sse_queues: Set[asyncio.Queue] = set()
 
         # Initialize ML prediction module (optional - won't break if it fails)
+        # TEMPORARILY DISABLED FOR TESTING
         self.ml_module = None
+        logger.info("🔧 ML module DISABLED for testing")
         try:
             kafka_config = {
                 'bootstrap.servers': settings.kafka_bootstrap_servers,
